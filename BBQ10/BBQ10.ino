@@ -238,12 +238,12 @@ void loop() {
       Serial.println();
     #endif
   }
-  // increase backlight if symbol key is pressed
+  // increase backlight if mic key + sym key is pressed
   if (keyActive(0,6) && keyPressed(0,2)) {
     changeBackgroundLight(keyboardLight + keyboardLightSteps);
   }
 
-  // decrease backlight if right shift key is pressed
+  // decrease backlight if mic key + right shift key is pressed
   if (keyActive(0,6) && keyPressed(2,3)) {
     changeBackgroundLight(keyboardLight - keyboardLightSteps);
   }
