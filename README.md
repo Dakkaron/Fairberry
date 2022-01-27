@@ -125,7 +125,7 @@ Now take the BlackBerry Q10 keyboard, and put it face down. Check the picture be
 
 Next, take some Blu Tack/Pattafix/... and put a small bit on the keyboard, where the Arduino will come to rest. You will now have to bend the flex PCB in an S shape. Make sure you don't fold the PCB, since that might break it. Put some 1-2mm thick ropes of Blu Tack/Pattafix in the bends to make sure they don't fold. Connect the connector to your adapter. Make the S bend and stick the electronics down with a thin layer of Blu Tack/Pattafix.
 
-The keyboard itself is now ready. You can connect it to a smartphone or keyboard and see if all keys work. You will need to set the keyboard layout on your device to German if you get incorrect output. This was necessary to get European characters, since, for some reason, English keyboard layouts don't allow dacritics and stuff.
+The keyboard itself is now ready. You can connect it to a smartphone or keyboard and see if all keys work. You will need to set the keyboard layout on your device to standard (no layouts activated) if you get incorrect output. This is necessary, because Android 11 has a bug that distorts all other layouts if an accessibility service is activated.
 
 If everything is working, it's now time to attach the keyboard to your phone.
 
