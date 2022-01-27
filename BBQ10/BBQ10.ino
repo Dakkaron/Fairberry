@@ -2,7 +2,7 @@
 #define IDLE_TIMEOUT 60 * 1000
 
 #ifdef USB_HID_OUT
-#include "KeyboardDE.h"
+#include "Keyboard.h"
 #endif
 
 #include "LowPower.h"
@@ -36,8 +36,8 @@ char keyboard_cursor[colCount][rowCount] = {
   {KEY_ESC, KEY_UP_ARROW, NULL, KEY_LEFT_ARROW,  KEY_TAB, ' ', '0'}, // sym, ALT, SPACE
   {'2', KEY_DOWN_ARROW, KEY_RIGHT_ARROW,  KEY_F15,  '8',  '7', KEY_LEFT_SHIFT}, // left shift
   {'3', '/', '(',  KEY_RIGHT_SHIFT, '?',  '9', '6'}, // right shift
-  {KEY_U_UMLAUT, ':', ')',  KEY_F14, '!', ',', ';'}, // Enter
-  {KEY_O_UMLAUT, '"', KEY_A_UMLAUT, KEY_F13, KEY_ESZETT, '.', '\''} // $/Vol
+  {KEY_F7, ':', ')',  KEY_F4, '!', ',', ';'}, // Enter
+  {KEY_F6, '"', KEY_F8, KEY_F3, KEY_F5, '.', '\''} // $/Vol
 };
 
 
@@ -147,7 +147,7 @@ void printMatrix() {
             USBDevice.attach();
             keyboardInit = false;
             delay(50);
-            //Keyboard.begin(KeyboardLayout_de_DE);
+            Keyboard.begin(KeyboardLayout_en_US);
           }
           if (keyChanged(colIndex, rowIndex) && isPrintableKey(colIndex, rowIndex)) {
             #ifdef USB_HID_OUT
