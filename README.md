@@ -18,11 +18,11 @@ The Fairberry keyboard is detachable and can be used without any modifications o
 
 There are five parts to the Fairberry keyboard:
 
--) A BlackBerry Q10 replacement keyboard from Aliexpress (~€10-15 plus shipping)
--) The BlackBerry Q10 Keyboard Breakout Board from here: https://github.com/arturo182/bbq10kbd_breakout
--) An Arduino Pro Micro (Micro, not Mini! This is very important since the Pro Mini does not have USB interface that can be used to emulate a keyboard!)
--) An USB C or Micro USB OTG breakout board or cable to connect to the phone
--) The 3D printed case
+- A BlackBerry Q10 replacement keyboard from Aliexpress (~â‚¬10-15 plus shipping)
+- The BlackBerry Q10 Keyboard Breakout Board from here: https://github.com/arturo182/bbq10kbd_breakout
+- An Arduino Pro Micro (Micro, not Mini! This is very important since the Pro Mini does not have USB interface that can be used to emulate a keyboard!)
+- An USB C or Micro USB OTG breakout board or cable to connect to the phone
+- The 3D printed case
 
 > :warning: **Please read (and understand) the whole page before buying/building it!**
 > :warning: **Messing this up can result in damage to your phone, your PC and/or the parts used in this build. If you are new to soldering, ask someone for help! I am not responsible for any damage that you to your stuff! You are doing this at your own risk!**
