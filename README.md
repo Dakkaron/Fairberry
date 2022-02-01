@@ -25,7 +25,7 @@ There are five parts to the Fairberry keyboard:
 - The 3D printed case
 
 > :warning: **Please read (and understand) the whole page before buying/building it!**
-> :warning: **Messing this up can result in damage to your phone, your PC and/or the parts used in this build. If you are new to soldering, ask someone for help! I am not responsible for any damage that you to your stuff! You are doing this at your own risk!**
+> :warning: **Messing this up can result in damage to your phone, your PC and/or the parts used in this build. If you are new to soldering, ask someone for help! I am not responsible for any damage that you do to your stuff! You are doing this at your own risk!**
 
 ### The BlackBerry Q10 Keyboard
 
