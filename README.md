@@ -57,7 +57,7 @@ Make sure you verify with a multimeter that all the conenctions are working and 
 
 ### The Arduino Pro Micro
 
-Make sure you get a Blackberry Pro Micro, and not the Pro Mini. The Pro Mini uses a different chip that doesn't natively support USB, and it will not work. To work, your Pro Micro should have an AtMega32u4 chip on it. It doesn't matter too much what kind of USB connector is on there, since we are going to remove that one anyways.
+Make sure you get an Arduino Pro Micro, and not the Pro Mini. The Pro Mini uses a different chip that doesn't natively support USB, and it will not work. To work, your Pro Micro should have an AtMega32u4 chip on it. It doesn't matter too much what kind of USB connector is on there, since we are going to remove that one anyways.
 
 First, flash the BBQ10.ino sketch to your Arduino. For that, download the BBQ10 folder in this repository, download the Arduino IDE, and open the BBQ10.ino in the Arduino IDE.
 
