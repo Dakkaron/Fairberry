@@ -1,5 +1,5 @@
 #define USB_HID_OUT
-#define IDLE_TIMEOUT 60 * 1000
+#define IDLE_TIMEOUT 60L * 1000L
 
 #ifdef USB_HID_OUT
 #include "Keyboard.h"
@@ -70,7 +70,7 @@ void setup() {
     // set pins for the keyboard backlight
     pinMode(KEYBOARD_LIGHT_PIN, OUTPUT);
 
-    setKeyboardBacklight(keyboardLight);
+    setKeyboardBacklight(keyboardLight, true);
 
     symbolSelected = false;
 }
@@ -131,24 +131,46 @@ bool isPrintableKey(int colIndex, int rowIndex) {
   return keyboard_symbol[colIndex][rowIndex] != NULL || keyboard[colIndex][rowIndex] != NULL;
 }
 
-void setKeyboardBacklight(int keyboardLight) {
-    analogWrite(KEYBOARD_LIGHT_PIN, keyboardLight);
+void changeKeyboardBacklight(int change, bool on) {
+  setKeyboardBacklight(keyboardLight + change, on);
 }
 
+void setKeyboardBacklight(int pwmValue, bool on) {
+  if (pwmValue > 255) {
+    pwmValue = 255;
+  }
+  if (pwmValue < 0) {
+    pwmValue = 0;
+  }
+  keyboardLight = pwmValue;
+  if (on) {
+    analogWrite(KEYBOARD_LIGHT_PIN, keyboardLight);
+  } else {
+    analogWrite(KEYBOARD_LIGHT_PIN, 0);
+  }
+}
 
 void printMatrix() {
     for (int rowIndex=0; rowIndex < rowCount; rowIndex++) {
         for (int colIndex=0; colIndex < colCount; colIndex++) {
           // we only want to print if the key is pressed and it is a printable character
-          if (usbNeedsReinit && keyActive(colIndex, rowIndex)) {
-            usbNeedsReinit = false;
-            setKeyboardBacklight(keyboardLight);
+          if (keyActive(colIndex, rowIndex)) {
+            changeKeyboardBacklight(0, true);
             idleTimeout = millis() + IDLE_TIMEOUT;
-            USBDevice.attach();
-            keyboardInit = false;
-            delay(50);
-            Keyboard.begin(KeyboardLayout_en_US);
+            
+            if (usbNeedsReinit) {
+              usbNeedsReinit = false;
+              USBDevice.attach();
+              keyboardInit = false;
+              delay(50);
+              Keyboard.begin(KeyboardLayout_en_US);
+              delay(300);
+            }
           }
+          /*if (keyActive(colIndex, rowIndex)) {
+            idleTimeout = millis() + IDLE_TIMEOUT;
+            changeKeyboardBacklight(0, true);
+          }*/
           if (keyChanged(colIndex, rowIndex) && isPrintableKey(colIndex, rowIndex)) {
             #ifdef USB_HID_OUT
               char toPrint;
@@ -208,18 +230,6 @@ void printMatrix() {
     }
 }
 
-// a helper method that checks boundaries for the PWM values
-void changeBackgroundLight(int pwmValue) {
-  if (pwmValue > 255) {
-    pwmValue = 255;
-  }
-  if (pwmValue < 0) {
-    pwmValue = 0;
-  }
-  keyboardLight = pwmValue;
-  setKeyboardBacklight(keyboardLight);
-}
-
 void loop() {
   idleWakeup = false;
   readMatrix();
@@ -240,19 +250,19 @@ void loop() {
   }
   // increase backlight if mic key + sym key is pressed
   if (keyActive(0,6) && keyPressed(0,2)) {
-    changeBackgroundLight(keyboardLight + keyboardLightSteps);
+    changeKeyboardBacklight(keyboardLightSteps, true);
   }
 
   // decrease backlight if mic key + right shift key is pressed
   if (keyActive(0,6) && keyPressed(2,3)) {
-    changeBackgroundLight(keyboardLight - keyboardLightSteps);
+    changeKeyboardBacklight(-keyboardLightSteps, true);
   }
 
   if (keyActive(1,6) && keyPressed(2,3)) {
     cursorMode = !cursorMode;
   }
   if (idleTimeout<millis()) {
-    setKeyboardBacklight(0);
+    changeKeyboardBacklight(0, false);
     Keyboard.end();
     USBCON = 0;
     usbNeedsReinit = true;
