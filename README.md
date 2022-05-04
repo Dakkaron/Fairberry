@@ -18,14 +18,15 @@ The Fairberry keyboard is detachable and can be used without any modifications o
 
 There are five parts to the Fairberry keyboard:
 
--) A BlackBerry Q10 replacement keyboard from Aliexpress (~€10-15 plus shipping)
--) The BlackBerry Q10 Keyboard Breakout Board from here: https://github.com/arturo182/bbq10kbd_breakout
--) An Arduino Pro Micro (Micro, not Mini! This is very important since the Pro Mini does not have USB interface that can be used to emulate a keyboard!)
--) An USB C or Micro USB OTG breakout board or cable to connect to the phone
--) The 3D printed case
+- A BlackBerry Q10 replacement keyboard from Aliexpress (~â‚¬10-15 plus shipping)
+- The BlackBerry Q10 Keyboard Breakout Board from here: https://github.com/arturo182/bbq10kbd_breakout
+- An Arduino Pro Micro (Micro, not Mini! This is very important since the Pro Mini does not have USB interface that can be used to emulate a keyboard!)
+- An USB C or Micro USB OTG breakout board or cable to connect to the phone
+- The 3D printed case
 
 > :warning: **Please read (and understand) the whole page before buying/building it!**
-> :warning: **Messing this up can result in damage to your phone, your PC and/or the parts used in this build. If you are new to soldering, ask someone for help! I am not responsible for any damage that you to your stuff! You are doing this at your own risk!**
+
+> :warning: **Messing this up can result in damage to your phone, your PC and/or the parts used in this build. If you are new to soldering, ask someone for help! I am not responsible for any damage that you do to your stuff! You are doing this at your own risk!**
 
 ### The BlackBerry Q10 Keyboard
 
@@ -57,7 +58,7 @@ Make sure you verify with a multimeter that all the conenctions are working and 
 
 ### The Arduino Pro Micro
 
-Make sure you get a Blackberry Pro Micro, and not the Pro Mini. The Pro Mini uses a different chip that doesn't natively support USB, and it will not work. To work, your Pro Micro should have an AtMega32u4 chip on it. It doesn't matter too much what kind of USB connector is on there, since we are going to remove that one anyways.
+Make sure you get an Arduino Pro Micro, and not the Pro Mini. The Pro Mini uses a different chip that doesn't natively support USB, and it will not work. To work, your Pro Micro should have an AtMega32u4 chip on it. It doesn't matter too much what kind of USB connector is on there, since we are going to remove that one anyways.
 
 First, flash the BBQ10.ino sketch to your Arduino. For that, download the BBQ10 folder in this repository, download the Arduino IDE, and open the BBQ10.ino in the Arduino IDE.
 
