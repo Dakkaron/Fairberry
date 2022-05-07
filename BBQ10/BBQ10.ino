@@ -1,5 +1,10 @@
 #define USB_HID_OUT
 #define IDLE_TIMEOUT 60L * 1000L
+//#define SLEEP_MICROCONTROLLER_WHEN_INACTIVE
+#define BLINK_IN_CURSOR_MODE
+#define BLINK_TIMEOUT 20L
+
+
 
 #ifdef USB_HID_OUT
 #include "Keyboard.h"
@@ -44,6 +49,8 @@ char keyboard_cursor[colCount][rowCount] = {
 int keyboardLightSteps = 20;
 int keyboardLight = 200;
 volatile unsigned long idleTimeout = millis() + IDLE_TIMEOUT;
+volatile unsigned long blinkTimeout = millis() + BLINK_TIMEOUT;
+bool blinkState = true;
 bool idleWakeup = false;
 bool usbNeedsReinit = false;
 
@@ -157,15 +164,17 @@ void printMatrix() {
           if (keyActive(colIndex, rowIndex)) {
             changeKeyboardBacklight(0, true);
             idleTimeout = millis() + IDLE_TIMEOUT;
-            
-            if (usbNeedsReinit) {
-              usbNeedsReinit = false;
-              USBDevice.attach();
-              keyboardInit = false;
-              delay(50);
-              Keyboard.begin(KeyboardLayout_en_US);
-              delay(300);
-            }
+
+            #ifdef SLEEP_MICROCONTROLLER_WHEN_INACTIVE
+              if (usbNeedsReinit) {
+                usbNeedsReinit = false;
+                USBDevice.attach();
+                keyboardInit = false;
+                delay(50);
+                Keyboard.begin(KeyboardLayout_en_US);
+                delay(300);
+              }
+            #endif
           }
           /*if (keyActive(colIndex, rowIndex)) {
             idleTimeout = millis() + IDLE_TIMEOUT;
@@ -258,15 +267,28 @@ void loop() {
     changeKeyboardBacklight(-keyboardLightSteps, true);
   }
 
-  if (keyActive(1,6) && keyPressed(2,3)) {
+  if ((keyActive(1,6) && keyPressed(2,3)) || (keyPressed(1,6) && keyActive(2,3))) {
     cursorMode = !cursorMode;
   }
+  #ifdef BLINK_IN_CURSOR_MODE
+    if (idleTimeout>=millis()) {
+      if (cursorMode && blinkTimeout<millis()) {
+        blinkTimeout = millis() + BLINK_TIMEOUT;
+        blinkState = !blinkState;
+      } else if (!cursorMode) {
+        blinkState = true;
+      }
+      changeKeyboardBacklight(0, blinkState);
+    }
+  #endif
   if (idleTimeout<millis()) {
     changeKeyboardBacklight(0, false);
-    Keyboard.end();
-    USBCON = 0;
-    usbNeedsReinit = true;
-    LowPower.powerDown(SLEEP_120MS, ADC_OFF, BOD_OFF);
+    #ifdef SLEEP_MICROCONTROLLER_WHEN_INACTIVE
+      Keyboard.end();
+      USBCON = 0;
+      usbNeedsReinit = true;
+      LowPower.powerDown(SLEEP_120MS, ADC_OFF, BOD_OFF);
+    #endif
   }
   delay(10);
 }
