@@ -107,7 +107,7 @@ Using some thin enameled wire and solder, connect the pins like in the following
 | Row 4   | 6       |
 | Row 5   | 5       |
 | Row 6   | 4       |
-| Row 7   | 3       |
+| Row 7   | A2      |
 | Col 1   | A1      |
 | Col 2   | A0      |
 | Col 3   | 15      |
