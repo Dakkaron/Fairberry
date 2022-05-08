@@ -12,7 +12,7 @@
 
 #include "LowPower.h"
 
-byte rows[] = {9,8,7,6,5,4,3};
+byte rows[] = {9,8,7,6,5,4,A2};
 const int rowCount = sizeof(rows)/sizeof(rows[0]);
  
 byte cols[] = {A1,A0,15,14,16};
