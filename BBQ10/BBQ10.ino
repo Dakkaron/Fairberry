@@ -1,9 +1,49 @@
 #define USB_HID_OUT
-#define IDLE_TIMEOUT 60L * 1000L
-//#define SLEEP_MICROCONTROLLER_WHEN_INACTIVE
+/*
+ * ## Power Saving
+ * Without power saving options the whole device consumes around 60mA.
+ * While it's active, that's fine, but it consumes the same amount of
+ * energy while it's idle. Since the device is idle for most of the time,
+ * reducing the idle power is important.
+ * 
+ * For this there are multiple options:
+ * 
+ * ### IDLE_TIMEOUT
+ * This is the basic setting that determines after how many ms
+ * powersaving features are triggered. If the device was idle for more
+ * than the given time, the keyboard backlight is disabled and the given
+ * power save mode is applied (if any).
+ * 
+ * ### POWERSAVE_IDLE
+ * This is the recommended powersaving mode. It's a light sleep that keeps
+ * the USB connection active. It saves around 30-40mA. It introduces a delay
+ * of up to 120ms when the device is woken up.
+ * 
+ * ### POWERSAVE_POWERDOWN
+ * This is the more aggressive powersaving method. It completely turns off
+ * the microcontroller, saving around 55mA. This takes the power consumption
+ * down to almost nothing, but USB needs to reconnect after the keyboard
+ * is woken up. This takes about 1-2 seconds.
+ * 
+ * You can use either POWERSAVE_IDLE or POWERSAVE_POWERDOWN or none, but not both.
+ */
+#define IDLE_TIMEOUT 20L * 1000L
+#define POWERSAVE_IDLE
+//#define POWERSAVE_POWERDOWN
+
+
+/*
+ * To visually show that the device is in cursor mode, the keyboard backlight
+ * will blink rapidly if BLINK_IN_CURSOR_MODE is set. Change BLINK_TIMEOUT
+ * to change the blinking frequency.
+ */
 #define BLINK_IN_CURSOR_MODE
 #define BLINK_TIMEOUT 20L
 
+
+#if defined(POWERSAVE_IDLE) && defined(POWERSAVE_POWERDOWN)
+  #error "Cannot have POWERSAVE_IDLE and POWERSAVE_POWERDOWN at the same time!"
+#endif
 
 
 #ifdef USB_HID_OUT
@@ -165,7 +205,7 @@ void printMatrix() {
             changeKeyboardBacklight(0, true);
             idleTimeout = millis() + IDLE_TIMEOUT;
 
-            #ifdef SLEEP_MICROCONTROLLER_WHEN_INACTIVE
+            #ifdef POWERSAVE_POWERDOWN
               if (usbNeedsReinit) {
                 usbNeedsReinit = false;
                 USBDevice.attach();
@@ -283,11 +323,14 @@ void loop() {
   #endif
   if (idleTimeout<millis()) {
     changeKeyboardBacklight(0, false);
-    #ifdef SLEEP_MICROCONTROLLER_WHEN_INACTIVE
+    #ifdef POWERSAVE_POWERDOWN
       Keyboard.end();
-      USBCON = 0;
+      USBDevice.detach();
       usbNeedsReinit = true;
       LowPower.powerDown(SLEEP_120MS, ADC_OFF, BOD_OFF);
+    #endif
+    #ifdef POWERSAVE_IDLEuz
+      LowPower.idle(SLEEP_120MS, ADC_OFF, TIMER4_ON, TIMER3_ON, TIMER1_ON, TIMER0_ON, SPI_OFF, USART1_ON, TWI_OFF, USB_ON);
     #endif
   }
   delay(10);
