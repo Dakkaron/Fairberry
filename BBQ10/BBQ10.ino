@@ -15,7 +15,7 @@
  * 
  * ### POWERSAVE_IDLE
  * This is the recommended powersaving mode. It's a light sleep that keeps
- * the USB connection active. It saves around 30-40mA. It introduces a delay
+ * the USB connection active. It saves around 40mA. It introduces a delay
  * of up to 120ms when the device is woken up.
  * 
  * ### POWERSAVE_POWERDOWN
@@ -303,7 +303,7 @@ void loop() {
       LowPower.powerDown(SLEEP_120MS, ADC_OFF, BOD_OFF);
     #endif
     #ifdef POWERSAVE_IDLEuz
-      LowPower.idle(SLEEP_120MS, ADC_OFF, TIMER4_ON, TIMER3_ON, TIMER1_ON, TIMER0_ON, SPI_OFF, USART1_ON, TWI_OFF, USB_ON);
+      LowPower.idle(SLEEP_120MS, ADC_OFF, TIMER4_OFF, TIMER3_OFF, TIMER1_OFF, TIMER0_OFF, SPI_OFF, USART1_OFF, TWI_OFF, USB_ON);
     #endif
   }
   delay(10);
