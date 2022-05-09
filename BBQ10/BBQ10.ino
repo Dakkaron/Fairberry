@@ -1,4 +1,3 @@
-#define USB_HID_OUT
 /*
  * ## Power Saving
  * Without power saving options the whole device consumes around 60mA.
@@ -46,9 +45,7 @@
 #endif
 
 
-#ifdef USB_HID_OUT
 #include "Keyboard.h"
-#endif
 
 #include "LowPower.h"
 
@@ -100,10 +97,6 @@ bool keyboardInit = false;
 bool cursorMode = false;
 
 void setup() {
-    #ifndef USB_HID_OUT
-      Serial.begin(9600);
-      Serial.println("HERE");
-    #endif
     for(int x=0; x<rowCount; x++) {
         //Serial.print(rows[x]); Serial.println(" as input");
         pinMode(rows[x], INPUT);
@@ -221,59 +214,43 @@ void printMatrix() {
             changeKeyboardBacklight(0, true);
           }*/
           if (keyChanged(colIndex, rowIndex) && isPrintableKey(colIndex, rowIndex)) {
-            #ifdef USB_HID_OUT
-              char toPrint;
-              char other1;
-              char other2;
-              if (cursorMode) {
-                toPrint = keyboard_cursor[colIndex][rowIndex];
-                other1  = keyboard[colIndex][rowIndex];
-                other2  = keyboard_symbol[colIndex][rowIndex];
-              } else if (symbolSelected) {
-                symbolSelected = false;
-                toPrint = keyboard_symbol[colIndex][rowIndex];
-                other1  = keyboard[colIndex][rowIndex];
-                other2  = keyboard_cursor[colIndex][rowIndex];
-              } else {
-                toPrint = keyboard[colIndex][rowIndex];
-                other1  = keyboard_symbol[colIndex][rowIndex];
-                other2  = keyboard_cursor[colIndex][rowIndex];
-              }
-            #else
-              String toPrint;
-              if (symbolSelected) {
-                symbolSelected = keyActive(0,2);
-                toPrint = String(keyboard_symbol[colIndex][rowIndex]);
-              } else {
-                toPrint = String(keyboard[colIndex][rowIndex]);
-              }
-            #endif
+            char toPrint;
+            char other1;
+            char other2;
+            if (cursorMode) {
+              toPrint = keyboard_cursor[colIndex][rowIndex];
+              other1  = keyboard[colIndex][rowIndex];
+              other2  = keyboard_symbol[colIndex][rowIndex];
+            } else if (symbolSelected) {
+              symbolSelected = false;
+              toPrint = keyboard_symbol[colIndex][rowIndex];
+              other1  = keyboard[colIndex][rowIndex];
+              other2  = keyboard_cursor[colIndex][rowIndex];
+            } else {
+              toPrint = keyboard[colIndex][rowIndex];
+              other1  = keyboard_symbol[colIndex][rowIndex];
+              other2  = keyboard_cursor[colIndex][rowIndex];
+            }
 
             // keys 1,6 and 2,3 are Shift keys, so we want to upper case
            /* if (keyActive(1,6) || keyActive(2,3)) {
               toPrint.toUpperCase();
             }*/
-            #ifdef USB_HID_OUT
-              if (keyPressed(colIndex, rowIndex)) {
-                if (toPrint!=NULL) {
-                  Keyboard.press(toPrint);
-                }
-              } else {
-                if (toPrint!=NULL) {
-                  Keyboard.release(toPrint);
-                }
-                if (other1!=NULL) {
-                  Keyboard.release(other1);
-                }
-                if (other2!=NULL) {
-                  Keyboard.release(other2);
-                }
+            if (keyPressed(colIndex, rowIndex)) {
+              if (toPrint!=NULL) {
+                Keyboard.press(toPrint);
               }
-            #else
-              if (keyPressed(colIndex, rowIndex)) {
-                Serial.print(toPrint);
+            } else {
+              if (toPrint!=NULL) {
+                Keyboard.release(toPrint);
               }
-            #endif
+              if (other1!=NULL) {
+                Keyboard.release(other1);
+              }
+              if (other2!=NULL) {
+                Keyboard.release(other2);
+              }
+            }
           }
         }   
     }
@@ -287,15 +264,11 @@ void loop() {
 
   // key 3,3 is the enter key
   if (keyPressed(3,3)) {
-    #ifdef USB_HID_OUT
-      if (!keyboardInit) {
-        Keyboard.begin();
-        //Keyboard.begin(KeyboardLayout_de_DE);
-      }
-      Keyboard.write('\n');
-    #else
-      Serial.println();
-    #endif
+    if (!keyboardInit) {
+      Keyboard.begin();
+      //Keyboard.begin(KeyboardLayout_de_DE);
+    }
+    Keyboard.write('\n');
   }
   // increase backlight if mic key + sym key is pressed
   if (keyActive(0,6) && keyPressed(0,2)) {
