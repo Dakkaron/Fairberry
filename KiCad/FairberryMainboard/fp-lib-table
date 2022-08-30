@@ -1,0 +1,5 @@
+(fp_lib_table
+  (lib (name "Connectors_Hirose_extra")(type "KiCad")(uri "${KIPRJMOD}/modules/Connectors_Hirose_extra.pretty")(options "")(descr ""))
+  (lib (name "packages3d")(type "KiCad")(uri "${KIPRJMOD}/modules/packages3d")(options "")(descr ""))
+  (lib (name "Fairberry")(type "KiCad")(uri "${KIPRJMOD}/library/Fairberry.pretty")(options "")(descr ""))
+)
