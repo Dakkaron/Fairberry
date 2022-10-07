@@ -191,7 +191,7 @@ bool blinkState = true;
 bool idleWakeup = false;
 bool connectionNeedsReinit = false;
 
-bool anyKeyPressed = false;
+bool anyKeyReleased = false;
 
 #define STICKY_STATUS_OPEN 0
 #define STICKY_STATUS_STICKY 1
@@ -354,7 +354,7 @@ void wakeEverythingUp() {
 
 void readMatrix() {
   int delayTime = 0;
-  anyKeyPressed = false;
+  anyKeyReleased = false;
   // row: interate through the rows
   for (int rowIndex=0; rowIndex < rowCount; rowIndex++) {
     // iterate the columns
@@ -377,12 +377,12 @@ void readMatrix() {
         changedValue[colIndex][rowIndex] = false;
       } else { // If debouncing is not active, process the key press
         bool buttonPressed = (digitalRead(curRow) == LOW);
-        anyKeyPressed = anyKeyPressed | buttonPressed;
         
         keys[colIndex][rowIndex] = buttonPressed;
         if ((lastValue[colIndex][rowIndex] != buttonPressed)) {
           changedValue[colIndex][rowIndex] = true;
           debounceLoops[colIndex][rowIndex] = DEBOUNCE_LOOPS;
+          anyKeyReleased = anyKeyReleased | buttonPressed;
         } else {
           changedValue[colIndex][rowIndex] = false;
         }
@@ -407,7 +407,7 @@ void readMatrix() {
   stickyAlt += keyPressed(0, 4);
   rolloverStickyKeyStates();
 
-  if (anyKeyPressed) {
+  if (anyKeyReleased) {
     wakeEverythingUp();
   }
 }
@@ -452,12 +452,16 @@ void setKeyboardBacklight(int pwmValue, bool on) {
 }
 
 void unstickKeys() {
-  if (anyKeyPressed) {
-    stickySym = (stickySym==2) ? 2 : keyPressed(0, 2);
-    stickyLsh = (stickyLsh==2) ? 2 : keyPressed(1, 6);
-    stickyRsh = (stickyRsh==2) ? 2 : keyPressed(2, 3);
-    stickyCtrl= (stickyCtrl==2)? 2 : keyPressed(0, 6);
-    stickyAlt = (stickyAlt==2) ? 2 : keyPressed(0, 4);
+  if (anyKeyReleased) {
+    Serial.print("UNSTICK ");
+    Serial.print(stickyRsh);
+    Serial.print(" ");
+    stickySym = (stickySym==1) ? keyPressed(0, 2) : stickySym;
+    stickyLsh = (stickyLsh==1) ? keyPressed(1, 6) : stickyLsh;
+    stickyRsh = (stickyRsh==1) ? keyPressed(2, 3) : stickyRsh;
+    stickyCtrl= (stickyCtrl==1)? keyPressed(0, 6) : stickyCtrl;
+    stickyAlt = (stickyAlt==1) ? keyPressed(0, 4) : stickyAlt;
+    Serial.println(stickyRsh);
   }
 }
 
@@ -473,7 +477,7 @@ void printMatrix() {
           toPrint = keyboard_cursor[colIndex][rowIndex];
           other1  = keyboard[colIndex][rowIndex];
           other2  = keyboard_symbol[colIndex][rowIndex];
-        } else if (stickySym != STICKY_STATUS_OPEN) {
+        } else if (stickySym != STICKY_STATUS_OPEN || keyActive(0,2)) {
           toPrint = keyboard_symbol[colIndex][rowIndex];
           other1  = keyboard[colIndex][rowIndex];
           other2  = keyboard_cursor[colIndex][rowIndex];
@@ -490,10 +494,10 @@ void printMatrix() {
         }
         if (keyPressed(colIndex, rowIndex)) {
           if (toPrint!=NULL) {
-            if (stickyLsh != STICKY_STATUS_OPEN && !keyPressed(1, 6)) { KEYBOARD_PRESS(KEY_LEFT_SHIFT); }
-            if (stickyRsh != STICKY_STATUS_OPEN && !keyPressed(2, 3)) { KEYBOARD_PRESS(KEY_RIGHT_SHIFT); }
-            if (stickyCtrl!= STICKY_STATUS_OPEN && !keyPressed(0, 6)) { KEYBOARD_PRESS(KEY_LEFT_CTRL); }
-            if (stickyAlt != STICKY_STATUS_OPEN && !keyPressed(0, 4)) { KEYBOARD_PRESS(KEY_LEFT_ALT); }
+            if (stickyLsh != STICKY_STATUS_OPEN && !keyActive(1, 6)) { KEYBOARD_PRESS(KEY_LEFT_SHIFT); }
+            if (stickyRsh != STICKY_STATUS_OPEN && !keyActive(2, 3)) { KEYBOARD_PRESS(KEY_RIGHT_SHIFT); }
+            if (stickyCtrl!= STICKY_STATUS_OPEN && !keyActive(0, 6)) { KEYBOARD_PRESS(KEY_LEFT_CTRL); }
+            if (stickyAlt != STICKY_STATUS_OPEN && !keyActive(0, 4)) { KEYBOARD_PRESS(KEY_LEFT_ALT); }
             KEYBOARD_PRESS(toPrint);
           }
         } else {
@@ -506,10 +510,10 @@ void printMatrix() {
           if (other2!=NULL) {
             KEYBOARD_RELEASE(other2);
           }
-          if (stickyLsh != STICKY_STATUS_OPEN && !keyPressed(1, 6)) { KEYBOARD_RELEASE(KEY_LEFT_SHIFT); }
-          if (stickyRsh != STICKY_STATUS_OPEN && !keyPressed(2, 3)) { KEYBOARD_RELEASE(KEY_RIGHT_SHIFT); }
-          if (stickyCtrl!= STICKY_STATUS_OPEN && !keyPressed(0, 6)) { KEYBOARD_RELEASE(KEY_LEFT_CTRL); }
-          if (stickyAlt != STICKY_STATUS_OPEN && !keyPressed(0, 4)) { KEYBOARD_RELEASE(KEY_LEFT_ALT); }
+          if (!keyActive(1, 6)) { KEYBOARD_RELEASE(KEY_LEFT_SHIFT); }
+          if (!keyActive(2, 3)) { KEYBOARD_RELEASE(KEY_RIGHT_SHIFT); }
+          if (!keyActive(0, 6)) { KEYBOARD_RELEASE(KEY_LEFT_CTRL); }
+          if (!keyActive(0, 4)) { KEYBOARD_RELEASE(KEY_LEFT_ALT); }
         }
       }
     }
@@ -525,8 +529,8 @@ void loop() {
     readMatrix();
     printMatrix();
     unstickKeys();
-    Serial.print("matrix: ");
-    Serial.println(millis()-startms);
+    //Serial.print("matrix: ");
+    //Serial.println(millis()-startms);
   #if BOARD_TYPE == ESP32
   }
   #endif
