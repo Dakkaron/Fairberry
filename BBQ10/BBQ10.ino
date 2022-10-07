@@ -32,6 +32,7 @@
 #endif
 
 #ifdef ARDUINO_CLOCKDOWN_DIVISION
+  #define ARDUINO_CLOCKDOWN_RESET_VALUE 0b00000000
   #if ARDUINO_CLOCKDOWN_DIVISION == 1
     #define ARDUINO_CLOCKDOWN_DIVISION_VALUE 0b00000000
   #elif ARDUINO_CLOCKDOWN_DIVISION == 2
@@ -97,11 +98,16 @@
 
 #if BOARD_TYPE == FAIRBERRY_V0_1_1
   byte rows[] = {A1,A2,8,9,10,5,A0};
-  byte cols[] = {4,30,1,12,6};
+  //byte cols[] = {4,30,1,12,6};
+  byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
 
   const byte KEYBOARD_LIGHT_PIN = 13;
   #define LED0_PIN 0
   #define LED1_PIN 11
+  
+  #define FASTCOLS
+  #define FASTCOLS_PORT PORTD
+  #define FASTCOLS_PINCONFIG DDRD
 #elif BOARD_TYPE == ARDUINO
   byte rows[] = {9,8,7,6,5,4,A2};
   byte cols[] = {A1,A0,15,14,16};
@@ -151,15 +157,17 @@ const int colCount = sizeof(cols)/sizeof(cols[0]);
 bool keys[colCount][rowCount];
 bool lastValue[colCount][rowCount];
 bool changedValue[colCount][rowCount];
+byte debounceLoops[colCount][rowCount];
+
 char keyboard[colCount][rowCount] = {
   {'q', 'w', NULL, 'a',  KEY_LEFT_ALT, ' ', KEY_LEFT_CTRL}, // sym, ALT, mic
   {'e', 's', 'd',  'p',  'x',  'z', KEY_LEFT_SHIFT}, // left shift
   {'r', 'g', 't',  KEY_RIGHT_SHIFT, 'v',  'c', 'f'}, // right shift
   {'u', 'h', 'y',  KEY_RETURN, 'b',  'n', 'j'}, // Enter
-  {'o', 'l', 'i', KEY_BACKSPACE, '€', 'm', 'k'} // Backspace
+  {'o', 'l', 'i', KEY_BACKSPACE, '$', 'm', 'k'} // Backspace
 };
 char keyboard_symbol[colCount][rowCount] = {
-  {'#', '1', NULL, '*',  KEY_LEFT_ALT, ' ', '0'}, // sym, ALT, SPACE
+  {'#', '1', NULL, '*',  KEY_TAB, ' ', '0'}, // sym, ALT, SPACE
   {'2', '4', '5',  '@',  '8',  '7', KEY_LEFT_SHIFT}, // left shift
   {'3', '/', '(',  KEY_RIGHT_SHIFT, '?',  '9', '6'}, // right shift
   {'_', ':', ')',  KEY_RETURN, '!',  ',', ';'}, // Enter
@@ -178,11 +186,22 @@ int keyboardLightSteps = 20;
 int keyboardLight = 200;
 volatile unsigned long idleTimeout = millis() + IDLE_TIMEOUT;
 volatile unsigned long blinkTimeout = millis() + BLINK_TIMEOUT;
+volatile bool isClockedDown = false;
 bool blinkState = true;
 bool idleWakeup = false;
 bool connectionNeedsReinit = false;
 
-bool symbolSelected;
+bool anyKeyPressed = false;
+
+#define STICKY_STATUS_OPEN 0
+#define STICKY_STATUS_STICKY 1
+#define STICKY_STATUS_LOCKED 2
+
+byte stickySym = STICKY_STATUS_OPEN;
+byte stickyLsh = STICKY_STATUS_OPEN;
+byte stickyRsh = STICKY_STATUS_OPEN;
+byte stickyCtrl = STICKY_STATUS_OPEN;
+byte stickyAlt = STICKY_STATUS_OPEN;
 
 bool keyboardInit = false;
 bool cursorMode = false;
@@ -208,64 +227,189 @@ void setup() {
 
       esp_wifi_set_mode(WIFI_MODE_NULL);
     #endif
-    #ifdef POWERSAVE_ARDUINO_CLOCKDOWN
-      CLKPR = 0b10000000;
-      CLKPR = ARDUINO_CLOCKDOWN_DIVISION_VALUE;
-      CLKPR = ARDUINO_CLOCKDOWN_DIVISION_VALUE;
-      CLKPR = ARDUINO_CLOCKDOWN_DIVISION_VALUE;
-    #endif
-    for(int x=0; x<rowCount; x++) {
-        //Serial.print(rows[x]); Serial.println(" as input");
-        pinMode(rows[x], INPUT);
+    for(int i=0; i<rowCount; i++) {
+        //Serial.print(rows[i]); Serial.println(" as input");
+        pinMode(rows[i], INPUT);
     }
  
-    for (int x=0; x<colCount; x++) {
-        //Serial.print(cols[x]); Serial.println(" as input-pullup");
-        pinMode(cols[x], INPUT_PULLUP);
+    for (int i=0; i<colCount; i++) {
+        //Serial.print(cols[i]); Serial.println(" as input-pullup");
+        #ifdef FASTCOLS
+          FASTCOLS_PINCONFIG = FASTCOLS_PINCONFIG & !(1 << cols[i]);
+          FASTCOLS_PORT = FASTCOLS_PORT & !(1 << cols[i]);
+        #else
+          pinMode(cols[i], INPUT);
+        #endif
     }
 
     // set pins for the keyboard backlight
     pinMode(KEYBOARD_LIGHT_PIN, OUTPUT);
 
     setKeyboardBacklight(keyboardLight, true);
+}
 
-    symbolSelected = false;
+void rolloverStickyKeyStates() {
+  #ifndef STICKY_SYM
+    if (stickySym == STICKY_STATUS_STICKY) {
+      stickySym++;
+    }
+  #endif
+  #ifndef STICKY_LSH
+    if (stickyLsh == STICKY_STATUS_STICKY) {
+      stickyLsh++;
+    }
+  #endif
+  #ifndef STICKY_RSH
+    if (stickyRsh == STICKY_STATUS_STICKY) {
+      stickyRsh++;
+    }
+  #endif
+  #ifndef STICKY_CTRL
+    if (stickyCtrl == STICKY_STATUS_STICKY) {
+      stickyCtrl++;
+    }
+  #endif
+  #ifndef STICKY_ALT
+    if (stickyAlt == STICKY_STATUS_STICKY) {
+      stickyAlt++;
+    }
+  #endif
+
+  #ifndef DOUBLETAP_LOCK_SYM
+    if (stickySym == STICKY_STATUS_LOCKED) {
+      stickySym++;
+    }
+  #endif
+  #ifndef DOUBLETAP_LOCK_LSH
+    if (stickyLsh == STICKY_STATUS_LOCKED) {
+      stickyLsh++;
+    }
+  #endif
+  #ifndef DOUBLETAP_LOCK_RSH
+    if (stickyRsh == STICKY_STATUS_LOCKED) {
+      stickyRsh++;
+    }
+  #endif
+  #ifndef DOUBLETAP_LOCK_CTRL
+    if (stickyCtrl == STICKY_STATUS_LOCKED) {
+      stickyCtrl++;
+    }
+  #endif
+  #ifndef DOUBLETAP_LOCK_ALT
+    if (stickyAlt == STICKY_STATUS_LOCKED) {
+      stickyAlt++;
+    }
+  #endif
+
+  if (stickySym > STICKY_STATUS_LOCKED) {
+    stickySym = STICKY_STATUS_OPEN;
+  }
+  if (stickyLsh > STICKY_STATUS_LOCKED) {
+    stickyLsh = STICKY_STATUS_OPEN;
+  }
+  if (stickyRsh > STICKY_STATUS_LOCKED) {
+    stickyRsh = STICKY_STATUS_OPEN;
+  }
+  if (stickyCtrl > STICKY_STATUS_LOCKED) {
+    stickyCtrl = STICKY_STATUS_OPEN;
+  }
+  if (stickyAlt > STICKY_STATUS_LOCKED) {
+    stickyAlt = STICKY_STATUS_OPEN;
+  }
+}
+
+void wakeEverythingUp() {
+  changeKeyboardBacklight(0, true);
+  idleTimeout = millis() + IDLE_TIMEOUT;
+  #ifdef POWERSAVE_ARDUINO_CLOCKDOWN
+    if (isClockedDown) {
+      CLKPR = 0b10000000;
+      CLKPR = ARDUINO_CLOCKDOWN_RESET_VALUE;
+      CLKPR = ARDUINO_CLOCKDOWN_RESET_VALUE;
+      CLKPR = ARDUINO_CLOCKDOWN_RESET_VALUE;
+      isClockedDown = false;
+    }
+  #endif
+  #ifdef POWERSAVE_ARDUINO_POWERDOWN
+    if (connectionNeedsReinit) {
+      connectionNeedsReinit = false;
+      USBDevice.attach();
+      keyboardInit = false;
+      delay(50);
+      KEYBOARD_BEGIN(KeyboardLayout_en_US);
+      delay(300);
+    }
+  #endif
+  #ifdef POWERSAVE_ESP32_LIGHT_SLEEP
+    if (connectionNeedsReinit) {
+      pinMode(RESET_PIN, OUTPUT);
+      digitalWrite(RESET_PIN, LOW);
+      
+      /*connectionNeedsReinit = false;
+      btStart();
+      KEYBOARD_BEGIN(KeyboardLayout_en_US);*/
+    }
+  #endif
 }
 
 void readMatrix() {
-    int delayTime = 0;
+  int delayTime = 0;
+  anyKeyPressed = false;
+  // row: interate through the rows
+  for (int rowIndex=0; rowIndex < rowCount; rowIndex++) {
     // iterate the columns
+    byte curRow = rows[rowIndex];
+    pinMode(curRow, INPUT_PULLUP);
+    
     for (int colIndex=0; colIndex < colCount; colIndex++) {
-        // col: set to output to low
-        byte curCol = cols[colIndex];
+      // col: set to output to low
+      byte curCol = cols[colIndex];
+      #ifdef FASTCOLS
+        FASTCOLS_PINCONFIG = FASTCOLS_PINCONFIG | (1 << curCol);
+        FASTCOLS_PORT = FASTCOLS_PORT & !(1 << curCol);
+      #else
         pinMode(curCol, OUTPUT);
         digitalWrite(curCol, LOW);
- 
-        // row: interate through the rows
-        for (int rowIndex=0; rowIndex < rowCount; rowIndex++) {
-            byte rowCol = rows[rowIndex];
-            pinMode(rowCol, INPUT_PULLUP);
-            delay(1); // arduino is not fast enought to switch input/output modes so wait 1 ms
+      #endif
 
-            bool buttonPressed = (digitalRead(rowCol) == LOW);
-            
-            keys[colIndex][rowIndex] = buttonPressed;
-            if ((lastValue[colIndex][rowIndex] != buttonPressed)) {
-              changedValue[colIndex][rowIndex] = true;
-            } else {
-              changedValue[colIndex][rowIndex] = false;
-            }
-
-            lastValue[colIndex][rowIndex] = buttonPressed;
-            pinMode(rowCol, INPUT);
+      if (debounceLoops[colIndex][rowIndex]>0) { // If debouncing is still active for this key, ignore all input
+        debounceLoops[colIndex][rowIndex]--;
+        changedValue[colIndex][rowIndex] = false;
+      } else { // If debouncing is not active, process the key press
+        bool buttonPressed = (digitalRead(curRow) == LOW);
+        anyKeyPressed = anyKeyPressed | buttonPressed;
+        
+        keys[colIndex][rowIndex] = buttonPressed;
+        if ((lastValue[colIndex][rowIndex] != buttonPressed)) {
+          changedValue[colIndex][rowIndex] = true;
+          debounceLoops[colIndex][rowIndex] = DEBOUNCE_LOOPS;
+        } else {
+          changedValue[colIndex][rowIndex] = false;
         }
-        // disable the column
-        pinMode(curCol, INPUT);
-    }
+  
+        lastValue[colIndex][rowIndex] = buttonPressed;
+      }
 
-    if (keyPressed(0, 2)) {
-      symbolSelected = true;
+      #ifdef FASTCOLS
+        FASTCOLS_PINCONFIG = FASTCOLS_PINCONFIG & !(1 << curCol);
+        FASTCOLS_PORT = FASTCOLS_PORT & !(1 << curCol);
+      #else
+        pinMode(curCol, INPUT);
+      #endif
     }
+    pinMode(curRow, INPUT);
+  }
+
+  stickySym += keyPressed(0, 2);
+  stickyLsh += keyPressed(1, 6);
+  stickyRsh += keyPressed(2, 3);
+  stickyCtrl+= keyPressed(0, 6);
+  stickyAlt += keyPressed(0, 4);
+  rolloverStickyKeyStates();
+
+  if (anyKeyPressed) {
+    wakeEverythingUp();
+  }
 }
 
 bool keyPressed(int colIndex, int rowIndex) {
@@ -307,85 +451,69 @@ void setKeyboardBacklight(int pwmValue, bool on) {
   }
 }
 
-void printMatrix() {
-    for (int rowIndex=0; rowIndex < rowCount; rowIndex++) {
-        for (int colIndex=0; colIndex < colCount; colIndex++) {
-          // we only want to print if the key is pressed and it is a printable character
-          if (keyActive(colIndex, rowIndex)) {
-            changeKeyboardBacklight(0, true);
-            idleTimeout = millis() + IDLE_TIMEOUT;
-            #ifdef POWERSAVE_ARDUINO_CLOCKDOWN
-              CLKPR = 0b10000000;
-              CLKPR = ARDUINO_CLOCKDOWN_DIVISION_VALUE;
-              CLKPR = ARDUINO_CLOCKDOWN_DIVISION_VALUE;
-              CLKPR = ARDUINO_CLOCKDOWN_DIVISION_VALUE;
-            #endif
-            #ifdef POWERSAVE_ARDUINO_POWERDOWN
-              if (connectionNeedsReinit) {
-                connectionNeedsReinit = false;
-                USBDevice.attach();
-                keyboardInit = false;
-                delay(50);
-                KEYBOARD_BEGIN(KeyboardLayout_en_US);
-                delay(300);
-              }
-            #endif
-            #ifdef POWERSAVE_ESP32_LIGHT_SLEEP
-              if (connectionNeedsReinit) {
-                pinMode(RESET_PIN, OUTPUT);
-                digitalWrite(RESET_PIN, LOW);
-                
-                /*connectionNeedsReinit = false;
-                btStart();
-                KEYBOARD_BEGIN(KeyboardLayout_en_US);*/
-              }
-            #endif
-          }
-          /*if (keyActive(colIndex, rowIndex)) {
-            idleTimeout = millis() + IDLE_TIMEOUT;
-            changeKeyboardBacklight(0, true);
-          }*/
-          if (keyChanged(colIndex, rowIndex) && isPrintableKey(colIndex, rowIndex)) {
-            char toPrint;
-            char other1;
-            char other2;
-            if (cursorMode) {
-              toPrint = keyboard_cursor[colIndex][rowIndex];
-              other1  = keyboard[colIndex][rowIndex];
-              other2  = keyboard_symbol[colIndex][rowIndex];
-            } else if (symbolSelected) {
-              symbolSelected = false;
-              toPrint = keyboard_symbol[colIndex][rowIndex];
-              other1  = keyboard[colIndex][rowIndex];
-              other2  = keyboard_cursor[colIndex][rowIndex];
-            } else {
-              toPrint = keyboard[colIndex][rowIndex];
-              other1  = keyboard_symbol[colIndex][rowIndex];
-              other2  = keyboard_cursor[colIndex][rowIndex];
-            }
+void unstickKeys() {
+  if (anyKeyPressed) {
+    stickySym = (stickySym==2) ? 2 : keyPressed(0, 2);
+    stickyLsh = (stickyLsh==2) ? 2 : keyPressed(1, 6);
+    stickyRsh = (stickyRsh==2) ? 2 : keyPressed(2, 3);
+    stickyCtrl= (stickyCtrl==2)? 2 : keyPressed(0, 6);
+    stickyAlt = (stickyAlt==2) ? 2 : keyPressed(0, 4);
+  }
+}
 
-            // keys 1,6 and 2,3 are Shift keys, so we want to upper case
-           /* if (keyActive(1,6) || keyActive(2,3)) {
-              toPrint.toUpperCase();
-            }*/
-            if (keyPressed(colIndex, rowIndex)) {
-              if (toPrint!=NULL) {
-                KEYBOARD_PRESS(toPrint);
-              }
-            } else {
-              if (toPrint!=NULL) {
-                KEYBOARD_RELEASE(toPrint);
-              }
-              if (other1!=NULL) {
-                KEYBOARD_RELEASE(other1);
-              }
-              if (other2!=NULL) {
-                KEYBOARD_RELEASE(other2);
-              }
-            }
+void printMatrix() {
+  for (int rowIndex=0; rowIndex < rowCount; rowIndex++) {
+    for (int colIndex=0; colIndex < colCount; colIndex++) {
+      // we only want to print if the key is pressed and it is a printable character
+      if (keyChanged(colIndex, rowIndex) && isPrintableKey(colIndex, rowIndex)) {
+        char toPrint;
+        char other1;
+        char other2;
+        if (cursorMode) {
+          toPrint = keyboard_cursor[colIndex][rowIndex];
+          other1  = keyboard[colIndex][rowIndex];
+          other2  = keyboard_symbol[colIndex][rowIndex];
+        } else if (stickySym != STICKY_STATUS_OPEN) {
+          toPrint = keyboard_symbol[colIndex][rowIndex];
+          other1  = keyboard[colIndex][rowIndex];
+          other2  = keyboard_cursor[colIndex][rowIndex];
+        } else {
+          toPrint = keyboard[colIndex][rowIndex];
+          other1  = keyboard_symbol[colIndex][rowIndex];
+          other2  = keyboard_cursor[colIndex][rowIndex];
+        }
+  
+        // Workaround for left shift key dropping while being pressed
+        if (keyActive(1,6) && rowIndex!=1 && colIndex!=6) {
+          KEYBOARD_RELEASE(KEY_LEFT_SHIFT);
+          KEYBOARD_PRESS(KEY_LEFT_SHIFT);
+        }
+        if (keyPressed(colIndex, rowIndex)) {
+          if (toPrint!=NULL) {
+            if (stickyLsh != STICKY_STATUS_OPEN && !keyPressed(1, 6)) { KEYBOARD_PRESS(KEY_LEFT_SHIFT); }
+            if (stickyRsh != STICKY_STATUS_OPEN && !keyPressed(2, 3)) { KEYBOARD_PRESS(KEY_RIGHT_SHIFT); }
+            if (stickyCtrl!= STICKY_STATUS_OPEN && !keyPressed(0, 6)) { KEYBOARD_PRESS(KEY_LEFT_CTRL); }
+            if (stickyAlt != STICKY_STATUS_OPEN && !keyPressed(0, 4)) { KEYBOARD_PRESS(KEY_LEFT_ALT); }
+            KEYBOARD_PRESS(toPrint);
           }
-        }   
+        } else {
+          if (toPrint!=NULL) {
+            KEYBOARD_RELEASE(toPrint);
+          }
+          if (other1!=NULL) {
+            KEYBOARD_RELEASE(other1);
+          }
+          if (other2!=NULL) {
+            KEYBOARD_RELEASE(other2);
+          }
+          if (stickyLsh != STICKY_STATUS_OPEN && !keyPressed(1, 6)) { KEYBOARD_RELEASE(KEY_LEFT_SHIFT); }
+          if (stickyRsh != STICKY_STATUS_OPEN && !keyPressed(2, 3)) { KEYBOARD_RELEASE(KEY_RIGHT_SHIFT); }
+          if (stickyCtrl!= STICKY_STATUS_OPEN && !keyPressed(0, 6)) { KEYBOARD_RELEASE(KEY_LEFT_CTRL); }
+          if (stickyAlt != STICKY_STATUS_OPEN && !keyPressed(0, 4)) { KEYBOARD_RELEASE(KEY_LEFT_ALT); }
+        }
+      }
     }
+  }
 }
 
 void loop() {
@@ -396,8 +524,9 @@ void loop() {
   #endif
     readMatrix();
     printMatrix();
-    //Serial.print("matrix: ");
-    //Serial.println(millis()-startms);
+    unstickKeys();
+    Serial.print("matrix: ");
+    Serial.println(millis()-startms);
   #if BOARD_TYPE == ESP32
   }
   #endif
@@ -446,6 +575,7 @@ void loop() {
       CLKPR = ARDUINO_CLOCKDOWN_DIVISION_VALUE;
       CLKPR = ARDUINO_CLOCKDOWN_DIVISION_VALUE;
       CLKPR = ARDUINO_CLOCKDOWN_DIVISION_VALUE;
+      isClockedDown = true;
     #endif
     #ifdef POWERSAVE_ARDUINO_IDLE
       LowPower.idle(SLEEP_120MS, ADC_OFF, TIMER4_OFF, TIMER3_OFF, TIMER1_OFF, TIMER0_OFF, SPI_OFF, USART1_OFF, TWI_OFF, USB_ON);
