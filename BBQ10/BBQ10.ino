@@ -264,7 +264,7 @@ void updateStickyKeyStates() {
     resetStickyKeys();
     stickyRsh = tmp + 1;
   }
-  if (keyPressed(0, 6)) {
+  if (stickySym==STICKY_STATUS_OPEN && keyPressed(0, 6)) {
     byte tmp = stickyCtrl;
     resetStickyKeys();
     stickyCtrl = tmp + 1;
