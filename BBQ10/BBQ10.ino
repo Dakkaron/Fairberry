@@ -248,6 +248,34 @@ void setup() {
     setKeyboardBacklight(keyboardLight, true);
 }
 
+void updateStickyKeyStates() {
+  if (keyPressed(0, 2)) {
+    byte tmp = stickySym;
+    resetStickyKeys();
+    stickySym = tmp + 1;
+  }
+  if (keyPressed(1, 6)) {
+    byte tmp = stickyLsh;
+    resetStickyKeys();
+    stickyLsh = tmp + 1;
+  }
+  if (keyPressed(2, 3)) {
+    byte tmp = stickyRsh;
+    resetStickyKeys();
+    stickyRsh = tmp + 1;
+  }
+  if (keyPressed(0, 6)) {
+    byte tmp = stickyCtrl;
+    resetStickyKeys();
+    stickyCtrl = tmp + 1;
+  }
+  if (keyPressed(0, 4)) {
+    byte tmp = stickyAlt;
+    resetStickyKeys();
+    stickyAlt = tmp + 1;
+  }
+}
+
 void rolloverStickyKeyStates() {
   #ifndef STICKY_SYM
     if (stickySym == STICKY_STATUS_STICKY) {
@@ -400,11 +428,7 @@ void readMatrix() {
     pinMode(curRow, INPUT);
   }
 
-  stickySym += keyPressed(0, 2);
-  stickyLsh += keyPressed(1, 6);
-  stickyRsh += keyPressed(2, 3);
-  stickyCtrl+= keyPressed(0, 6);
-  stickyAlt += keyPressed(0, 4);
+  updateStickyKeyStates();
   rolloverStickyKeyStates();
 
   if (anyKeyReleased) {
@@ -456,11 +480,11 @@ void unstickKeys() {
     Serial.print("UNSTICK ");
     Serial.print(stickyRsh);
     Serial.print(" ");
-    stickySym = (stickySym==1) ? keyPressed(0, 2) : stickySym;
-    stickyLsh = (stickyLsh==1) ? keyPressed(1, 6) : stickyLsh;
-    stickyRsh = (stickyRsh==1) ? keyPressed(2, 3) : stickyRsh;
-    stickyCtrl= (stickyCtrl==1)? keyPressed(0, 6) : stickyCtrl;
-    stickyAlt = (stickyAlt==1) ? keyPressed(0, 4) : stickyAlt;
+    stickySym = (stickySym==STICKY_STATUS_STICKY) ? keyPressed(0, 2) : stickySym;
+    stickyLsh = (stickyLsh==STICKY_STATUS_STICKY) ? keyPressed(1, 6) : stickyLsh;
+    stickyRsh = (stickyRsh==STICKY_STATUS_STICKY) ? keyPressed(2, 3) : stickyRsh;
+    stickyCtrl= (stickyCtrl==STICKY_STATUS_STICKY)? keyPressed(0, 6) : stickyCtrl;
+    stickyAlt = (stickyAlt==STICKY_STATUS_STICKY) ? keyPressed(0, 4) : stickyAlt;
     Serial.println(stickyRsh);
   }
 }
