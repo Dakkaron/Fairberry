@@ -249,27 +249,27 @@ void setup() {
 }
 
 void updateStickyKeyStates() {
-  if (keyPressed(0, 2)) {
+  if (keyPressed(0, 2) && !keyActive(0,6)) { // SYM(0,2) (inactive while CTRL(0,6) is held, because of brightness down)
     byte tmp = stickySym;
     resetStickyKeys();
     stickySym = tmp + 1;
   }
-  if (keyPressed(1, 6)) {
+  if (keyPressed(1, 6)) { // LSH(1,6)
     byte tmp = stickyLsh;
     resetStickyKeys();
     stickyLsh = tmp + 1;
   }
-  if (keyPressed(2, 3)) {
+  if (keyPressed(2, 3) && !keyActive(0,6)) { // RSH(2,3) (inactive while CTRL(0,6) is held, because of brightness down)
     byte tmp = stickyRsh;
     resetStickyKeys();
     stickyRsh = tmp + 1;
   }
-  if (stickySym==STICKY_STATUS_OPEN && keyPressed(0, 6)) {
+  if (stickySym==STICKY_STATUS_OPEN && keyPressed(0, 6)) { // CTRL(0,6)
     byte tmp = stickyCtrl;
     resetStickyKeys();
     stickyCtrl = tmp + 1;
   }
-  if (keyPressed(0, 4)) {
+  if (keyPressed(0, 4)) { // ALT(0,6)
     byte tmp = stickyAlt;
     resetStickyKeys();
     stickyAlt = tmp + 1;
