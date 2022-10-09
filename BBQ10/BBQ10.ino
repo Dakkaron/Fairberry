@@ -269,7 +269,7 @@ void updateStickyKeyStates() {
     resetStickyKeys();
     stickyCtrl = tmp + 1;
   }
-  if (keyPressed(0, 4)) { // ALT(0,6)
+  if (stickySym==STICKY_STATUS_OPEN && keyPressed(0, 4)) { // ALT(0,6)
     byte tmp = stickyAlt;
     resetStickyKeys();
     stickyAlt = tmp + 1;
