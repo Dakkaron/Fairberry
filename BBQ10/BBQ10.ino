@@ -489,6 +489,14 @@ void unstickKeys() {
   }
 }
 
+void resetStickyKeys() {
+  stickySym = STICKY_STATUS_OPEN;
+  stickyLsh = STICKY_STATUS_OPEN;
+  stickyRsh = STICKY_STATUS_OPEN;
+  stickyCtrl= STICKY_STATUS_OPEN;
+  stickyAlt = STICKY_STATUS_OPEN;
+}
+
 void printMatrix() {
   for (int rowIndex=0; rowIndex < rowCount; rowIndex++) {
     for (int colIndex=0; colIndex < colCount; colIndex++) {
@@ -571,6 +579,7 @@ void loop() {
 
   if ((keyActive(1,6) && keyPressed(2,3)) || (keyPressed(1,6) && keyActive(2,3))) {
     cursorMode = !cursorMode;
+    resetStickyKeys();
   }
   #ifdef BLINK_IN_CURSOR_MODE
     if (idleTimeout>=millis()) {
@@ -592,6 +601,7 @@ void loop() {
   if (idleTimeout<millis()) {
     //Serial.println("Sleep");
     changeKeyboardBacklight(0, false);
+    resetStickyKeys();
     #ifdef POWERSAVE_ARDUINO_POWERDOWN
       Keyboard.end();
       USBDevice.detach();
