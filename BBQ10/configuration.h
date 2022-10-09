@@ -66,6 +66,22 @@
 #define LED0_IN_CURSOR_MODE
 
 /*
+ * 
+ */
+#define STICKY_SYM
+#define STICKY_LSH
+#define STICKY_RSH
+#define STICKY_CTRL
+#define STICKY_ALT
+#define DOUBLETAP_LOCK_SYM
+#define DOUBLETAP_LOCK_LSH
+#define DOUBLETAP_LOCK_RSH
+//#define DOUBLETAP_LOCK_CTRL
+//#define DOUBLETAP_LOCK_ALT
+
+#define DEBOUNCE_LOOPS 20
+
+/*
  * If you define DEBUG_SERIAL_INSTEAD_OF_USB, the device will not function as a keyboard, but instead
  * output key presses to serial. Used for debugging.
  */
