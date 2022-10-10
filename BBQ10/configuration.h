@@ -1,12 +1,13 @@
 /*
  * ## Mainboard type
  * Can be either of the following:
+ * FAIRBERRY_V0_2_0 : This is the custom mainboard, version 0.2.0
  * FAIRBERRY_V0_1_1 : This is the custom mainboard, version 0.1.1
  * ARDUINO : The original option, using an Arduino Pro Micro
  * BEETLE : A slightly different version of the original option, using a smaller Beetle board based on the ATMega32u4. Not recommeded, because the beetle has one to few pins, so you have to solder directly to the ATMega32u4.
  * ESP32: Using an ESP32-based board to couple the board using Bluetooth. Not recommended, because the power options don't really work right now, and it consumes a lot of power.
  */
-#define BOARD_TYPE FAIRBERRY_V0_1_1
+#define BOARD_TYPE FAIRBERRY_V0_2_0
 
 /*
  * ## Power Saving
