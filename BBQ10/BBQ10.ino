@@ -1,7 +1,8 @@
+#define FAIRBERRY_V0_2_0 2
 #define FAIRBERRY_V0_1_1 1
 #define ARDUINO 10
-#define BEETLE 11
-#define ESP32 12
+#define BEETLE 1101
+#define ESP32 1102
 
 
 #define CHIP_ATMEGA32U4 1
@@ -9,7 +10,7 @@
 
 #include "configuration.h"
 
-#if BOARD_TYPE == FAIRBERRY_V0_1_1 || BOARD_TYPE == ARDUINO || BOARD_TYPE==BEETLE
+#if BOARD_TYPE == FAIRBERRY_V0_1_1 || BOARD_TYPE == FAIRBERRY_V0_2_0 || BOARD_TYPE == ARDUINO || BOARD_TYPE==BEETLE
   #define CHIP_TYPE CHIP_ATMEGA32U4
 #elif BOARD_TYPE == ESP32
   #define CHIP_ESP32
@@ -54,7 +55,7 @@
   #endif
 #endif
 
-#if BOARD_TYPE == FAIRBERRY_V0_1_1
+#if BOARD_TYPE == FAIRBERRY_V0_1_1 || BOARD_TYPE == FAIRBERRY_V0_2_0
   #define F_CPU 16000000
   #define TX_RX_LED_INIT  DDRE |= (1<<6), DDRB |= (1<<0)
   #define TXLED0      PORTE |= (1<<6)
@@ -96,7 +97,19 @@
   #define KEYBOARD_RELEASE(key) bleKeyboard.release(key)
 #endif
 
-#if BOARD_TYPE == FAIRBERRY_V0_1_1
+#if BOARD_TYPE == FAIRBERRY_V0_2_0
+  byte rows[] = {A1,7,8,9,10,5,A0};
+  //byte cols[] = {4,30,1,12,6};
+  byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
+
+  const byte KEYBOARD_LIGHT_PIN = 13;
+  #define LED0_PIN 0
+  #define LED1_PIN 11
+  
+  #define FASTCOLS
+  #define FASTCOLS_PORT PORTD
+  #define FASTCOLS_PINCONFIG DDRD
+#elif BOARD_TYPE == FAIRBERRY_V0_1_1
   byte rows[] = {A1,A2,8,9,10,5,A0};
   //byte cols[] = {4,30,1,12,6};
   byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
