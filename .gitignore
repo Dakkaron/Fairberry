@@ -1,2 +1,12 @@
 KiCad/FairberryMainboard/old/
 KiCad/FairberryMainboard/FairberryMainboard-backups/
+*.gbl
+*.gbs
+*.drl
+*.gbo
+*.gm1
+*.gtl
+*.gts
+*.gto
+*.gbr
+*.gbrjob
