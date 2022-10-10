@@ -10,6 +10,6 @@ The Fairberry keyboard is detachable and can be used without any modifications o
 
 ## How to build it?
 
-Recommended:[Custom mainboard](https://github.com/Dakkaron/Fairberry/blob/main/Documentation/Hardware_Fairberry_Mainboard.md)
+Recommended: [Custom mainboard](https://github.com/Dakkaron/Fairberry/blob/main/Documentation/Hardware_Fairberry_Mainboard.md)
 
 [Old Arduino-based hardware](https://github.com/Dakkaron/Fairberry/blob/main/Documentation/Hardware_Arduinobased.md)
