@@ -114,6 +114,14 @@ In the Library Manager, check that the following libraries are installed (and in
 
 Now close the Library Manager.
 
+Open the file configuration.h in the Arduino IDE.
+
+Find this line
+
+    #define BOARD_TYPE FAIRBERRY_V0_2_0
+
+and adjust the board type to the version that you are using.
+
 Make sure the USBASP is disconnected from the PC and the Fairberry Mainboard.
 
 Connect the Fairberry Mainboard's USB connector to the PC.
