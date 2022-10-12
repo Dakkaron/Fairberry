@@ -141,3 +141,46 @@ If some keys work but others don't, some of the pins on the Hirose connector are
 Now look at this [breakout adapter](https://github.com/arturo182/bbq10kbd_breakout) and follow the traces from the defective row/column pin to the pin on the connector to figure out, which pin has a bad contact.
 
 If you know which pin is at fault, try to carefully solder it on with a fine-tipped soldering iron.
+
+## Generating the 3D-print file for the case
+
+TBD
+
+## Printing the case
+
+TBD
+
+## Assembly
+
+First secure the flex PCB of the keyboard with a bit of kepton tape. This is done to reduce the risk of ripping the flex PCB at the point where it enters the keyboard.
+
+![Kepton on flex PCB](https://github.com/Dakkaron/Fairberry/blob/main/Images/kepton_on_flexpcb.jpg)
+
+Next put a small roll of Blu-Tack/Patafix onto the flex PCB and CAREFULLY bend it, like in the picture below. Warning, bending needs to be done carefully, otherwise it can break. Don't bend it more often than necessary. The roll of Blu-Tack/Patafix is there to cushion the bend a bit, so that it doesn't have as much strain on it.
+
+![Folding flex PCB](https://github.com/Dakkaron/Fairberry/blob/main/Images/folding_flexpcb.jpg)
+
+Optionally you can wrap the mainboard in kepton tape. This reduces the risk for shorts and keeps it clean from Blu-Tack/Patafix. Make sure to keep the keyboard connector free of kepton.
+
+![Mainboard wrapped in kepton](https://github.com/Dakkaron/Fairberry/blob/main/Images/pcb_in_kepton.jpg)
+
+Put some thin blobs of Blu-Tack/Patafix onto the backside of the mainboard and plug the keyboard's flex PCB into the mainboard.
+
+![Patafix on mainboard](https://github.com/Dakkaron/Fairberry/blob/main/Images/patafix_on_pcb.jpg)
+
+Carefully bend the Flex PCB into an S-shape under the mainboard and very carefully press the mainboard onto the keyboard, so that the Blu-Tack/Patafix can stick to the keyboard. Optionally, you can now also put a strip of kepton over the keyboard connector, to secure it to the mainboard.
+
+![Mainboard on keyboard](https://github.com/Dakkaron/Fairberry/blob/main/Images/mainboard_on_keyboard.jpg)
+
+Put the M3 screws through the hole in the case and place the USB connector into the fitting hole.
+
+![Preparing USB connector](https://github.com/Dakkaron/Fairberry/blob/main/Images/usb_connector_prepared.jpg)
+
+Put the M3 nuts into the holes in the USB clamp and screw it down. To help aligining the USB connector, place your phone into the attachment and plug the USB connector into the phone, before screwing it down. This makes sure that the USB corrector is aligned correctly.
+Also put a thin roll of Blu-Tack/Patafix on the top part of the area where the keyboard goes.
+
+![Preparing USB connector](https://github.com/Dakkaron/Fairberry/blob/main/Images/usb_screwed_down.jpg)
+
+Lastly, hook the bottom lip of the keyboard into the fitting hole in the case and carefully slide it in at an angle from the top. It might take a bit of careful force to put it in.
+
+![Fully assembled attachment](https://github.com/Dakkaron/Fairberry/blob/main/Images/assembly_finished.jpg)
