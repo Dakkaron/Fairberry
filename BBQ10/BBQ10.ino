@@ -69,6 +69,7 @@
     #include "Keyboard.h"
   #endif
   #include "LowPower.h"
+  #include <avr/power.h>
 
   #ifdef DEBUG_SERIAL_INSTEAD_OF_USB
     #define KEYBOARD_BEGIN(layout) Serial.begin()
@@ -185,7 +186,8 @@ const int colCount = sizeof(cols)/sizeof(cols[0]);
 bool keys[colCount][rowCount];
 bool lastValue[colCount][rowCount];
 bool changedValue[colCount][rowCount];
-byte debounceLoops[colCount][rowCount];
+byte debounceMs[colCount][rowCount];
+unsigned long lastDebounceMs;
 
 char keyboard[colCount][rowCount] = {
   {'q', 'w', NULL, 'a',  KEY_LEFT_ALT, ' ', KEY_LEFT_CTRL}, // sym, ALT, mic
@@ -274,6 +276,7 @@ void setup() {
     pinMode(KEYBOARD_LIGHT_PIN, OUTPUT);
 
     setKeyboardBacklight(keyboardLight, true);
+    lastDebounceMs = millis();
 }
 
 void updateStickyKeyStates() {
@@ -412,7 +415,7 @@ boolean anyKeyPressed = false;
 /**
  * Returns whether any key was changed (true == at least one key changed state)
  */
-boolean readMatrix() {
+boolean readMatrix(byte debouceMsSinceLast) {
   int delayTime = 0;
   anyKeyReleased = false;
   boolean anyKeyChanged = false;
@@ -490,8 +493,12 @@ boolean readMatrix() {
         #endif
       }
 
-      if (debounceLoops[colIndex][rowIndex]>0) { // If debouncing is still active for this key, ignore all input
-        debounceLoops[colIndex][rowIndex]--;
+      if (debounceMs[colIndex][rowIndex]>0) { // If debouncing is still active for this key, ignore all input
+        if (debouceMsSinceLast>=debounceMs[colIndex][rowIndex]) {
+          debounceMs[colIndex][rowIndex] -= debouceMsSinceLast;
+        } else {
+          debounceMs[colIndex][rowIndex] = 0;
+        }
         changedValue[colIndex][rowIndex] = false;
       } else { // If debouncing is not active, process the key press
         bool buttonPressed = (anyKeyPressed) && (digitalRead(curRow) == LOW);
@@ -499,7 +506,7 @@ boolean readMatrix() {
         keys[colIndex][rowIndex] = buttonPressed;
         if ((lastValue[colIndex][rowIndex] != buttonPressed)) {
           changedValue[colIndex][rowIndex] = true;
-          debounceLoops[colIndex][rowIndex] = DEBOUNCE_LOOPS;
+          debounceMs[colIndex][rowIndex] = DEBOUNCE_MS;
           anyKeyReleased = anyKeyReleased | buttonPressed;
           anyKeyChanged = true;
         } else {
@@ -679,7 +686,7 @@ void loop() {
   #if BOARD_TYPE == ESP32
   if (bleKeyboard.isConnected()) {
   #endif
-    if (readMatrix()) { // some key changed
+    if (readMatrix(startms-lastDebounceMs)) { // some key changed
       printMatrix();
       unstickKeys();
 
@@ -697,6 +704,7 @@ void loop() {
         resetStickyKeys();
       }
     }
+    lastDebounceMs = startms;
     //Serial.print("matrix: ");
     //Serial.println(millis()-startms);
   #if BOARD_TYPE == ESP32
@@ -739,7 +747,22 @@ void loop() {
       isClockedDown = true;
     #endif
     #ifdef POWERSAVE_ARDUINO_IDLE
+      power_twi_disable();
+      power_adc_disable();
+      power_spi_disable();
+      power_usart0_disable();
+      power_usart1_disable();
       LowPower.idle(SLEEP_120MS, ADC_OFF, TIMER4_OFF, TIMER3_OFF, TIMER1_OFF, TIMER0_OFF, SPI_OFF, USART1_OFF, TWI_OFF, USB_ON);
+      //LowPower.powerExtStandby(SLEEP_120MS, ADC_OFF, BOD_OFF, TIMER2_ON);
+      /*power_usb_disable();
+      power_spi_disable();
+      power_usart0_disable();
+      power_usart1_disable();
+      power_twi_disable();
+      power_adc_disable();
+      LowPower.adcNoiseReduction(SLEEP_120MS, ADC_OFF, TIMER2_ON);
+      power_usb_enable();*/
+      //LowPower.powerSave(SLEEP_120MS, ADC_OFF, BOD_OFF, TIMER2_ON);
     #endif
     #ifdef POWERSAVE_ESP32_LIGHT_SLEEP
       if (!connectionNeedsReinit) {
