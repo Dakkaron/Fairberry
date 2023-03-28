@@ -6,7 +6,7 @@ The Fairberry keyboard is detachable and can be used without any modifications o
 
 ## What can you expect?
 
-![Frontal shot of the keyboard attached to a Fairphone 4](https://github.com/Dakkaron/Fairberry/raw/main/Images/copper_wood.jpg)
+![Frontal shot of the keyboard attached to a Fairphone 4](https://github.com/Dakkaron/Fairberry/raw/main/Images/black_standing.jpg)
 
 ## How to build it?
 
