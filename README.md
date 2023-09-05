@@ -8,6 +8,9 @@ The Fairberry keyboard is detachable and can be used without any modifications o
 
 <img alt="Frontal shot of the keyboard attached to a Fairphone 4" src="https://github.com/Dakkaron/Fairberry/raw/main/Images/black_standing.jpg" width="40%">
 
+### Demo video
+[![Demo video showing the functionality of the Fairberry keyboard](https://img.youtube.com/vi/iDb8_ld9gOQ/0.jpg)](https://www.youtube.com/watch?v=iDb8_ld9gOQ)
+
 ## How to build it?
 
 Recommended: [Custom mainboard](https://github.com/Dakkaron/Fairberry/blob/main/Documentation/Hardware_Fairberry_Mainboard.md)
