@@ -219,6 +219,7 @@ volatile unsigned long blinkTimeout = millis() + BLINK_TIMEOUT;
 volatile bool isClockedDown = false;
 bool blinkState = true;
 bool idleWakeup = false;
+bool firstSleep = true;
 bool connectionNeedsReinit = false;
 
 bool anyKeyReleased = false;
@@ -732,10 +733,12 @@ void loop() {
     //Serial.println("Sleep");
     changeKeyboardBacklight(0, false);
     resetStickyKeys();
+    firstSleep = false;
     #ifdef POWERSAVE_ARDUINO_POWERDOWN
-      //Keyboard.end();
-      //USBDevice.detach();
-      USBDevice.standby();
+      Keyboard.end();
+      USBDevice.detach();
+      USBCON = 0;
+      //USBDevice.standby();
       connectionNeedsReinit = true;
       LowPower.powerDown(SLEEP_120MS, ADC_OFF, BOD_OFF);
     #endif
@@ -773,6 +776,11 @@ void loop() {
       esp_light_sleep_start();
     #endif
   }
+  #ifdef POWERSAVE_ARDUINO_IDLE_DURING_ACTIVE
+    if (!firstSleep) {
+      LowPower.idle(SLEEP_120MS, ADC_OFF, TIMER4_OFF, TIMER3_OFF, TIMER1_OFF, TIMER0_OFF, SPI_OFF, USART1_OFF, TWI_OFF, USB_ON);
+    }
+  #endif
   //Serial.print("total:  ");
   //Serial.println(millis()-startms);
 }
