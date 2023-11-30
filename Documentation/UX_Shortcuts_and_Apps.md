@@ -41,3 +41,9 @@ Using the Key Mapper app by sds100 you can add more advanced key combinations th
 - Alt + $: Rotate screen
 
 You can also use the "Key pressed" block in the Automate app by llamalab to trigger more complex actions using the keyboard.
+
+# Customizable software keyboard for missing characters
+
+Since the Blackberry Q10 keyboard doesn't contain all possible characters I use [Keyboard Designer](https://play.google.com/store/apps/details?id=de.humbergsoftware.keyboarddesigner) to add an one-row software keyboard containing characters that I frequently use but are not on the BBQ10 keyboard.
+
+
