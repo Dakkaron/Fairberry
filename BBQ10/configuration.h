@@ -7,7 +7,7 @@
  * BEETLE : A slightly different version of the original option, using a smaller Beetle board based on the ATMega32u4. Not recommeded, because the beetle has one to few pins, so you have to solder directly to the ATMega32u4.
  * ESP32: Using an ESP32-based board to couple the board using Bluetooth. Not recommended, because the power options don't really work right now, and it consumes a lot of power.
  */
-#define BOARD_TYPE FAIRBERRY_V0_2_0
+#define BOARD_TYPE FAIRBERRY_V0_1_1
 
 /*
  * ## Power Saving
@@ -44,14 +44,14 @@
  * 
  * For ESP32 boards you can either use POWERSAVE_ESP32_LIGHT_SLEEP or none.
  */
-#define IDLE_TIMEOUT 60L * 1000L
+#define IDLE_TIMEOUT 30L * 1000L
 #define POWERSAVE_ARDUINO_IDLE
 //#define POWERSAVE_ARDUINO_CLOCKDOWN
 //#define POWERSAVE_ARDUINO_POWERDOWN
 //#define POWERSAVE_ESP32_LIGHT_SLEEP
 //#define POWERSAVE_ESP32_DEEP_SLEEP
 
-//#define ARDUINO_CLOCKDOWN_DIVISION 16
+//#define ARDUINO_CLOCKDOWN_DIVISION 8
 
 
 /*
@@ -80,7 +80,7 @@
 //#define DOUBLETAP_LOCK_CTRL
 //#define DOUBLETAP_LOCK_ALT
 
-#define DEBOUNCE_LOOPS 20
+#define DEBOUNCE_MS 20
 
 /*
  * If you define DEBUG_SERIAL_INSTEAD_OF_USB, the device will not function as a keyboard, but instead

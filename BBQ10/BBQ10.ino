@@ -69,6 +69,7 @@
     #include "Keyboard.h"
   #endif
   #include "LowPower.h"
+  #include <avr/power.h>
 
   #ifdef DEBUG_SERIAL_INSTEAD_OF_USB
     #define KEYBOARD_BEGIN(layout) Serial.begin()
@@ -105,6 +106,14 @@
   const byte KEYBOARD_LIGHT_PIN = 13;
   #define LED0_PIN 0
   #define LED1_PIN 11
+
+  #define FASTCHECK
+  #define FASTROWCHECK_B 0b01110000
+  #define FASTROWCHECK_C 0b01000000
+  #define FASTROWCHECK_E 0b01000000
+  #define FASTROWCHECK_F 0b11000000
+
+  #define FASTCOLCHECK_D 0b11111000
   
   #define FASTCOLS
   #define FASTCOLS_PORT PORTD
@@ -113,6 +122,13 @@
   byte rows[] = {A1,A2,8,9,10,5,A0};
   //byte cols[] = {4,30,1,12,6};
   byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
+
+  #define FASTCHECK
+  #define FASTROWCHECK_B 0b01110000
+  #define FASTROWCHECK_C 0b01000000
+  #define FASTROWCHECK_F 0b11100000
+
+  #define FASTCOLCHECK_D 0b11111000
 
   const byte KEYBOARD_LIGHT_PIN = 13;
   #define LED0_PIN 0
@@ -170,7 +186,8 @@ const int colCount = sizeof(cols)/sizeof(cols[0]);
 bool keys[colCount][rowCount];
 bool lastValue[colCount][rowCount];
 bool changedValue[colCount][rowCount];
-byte debounceLoops[colCount][rowCount];
+byte debounceMs[colCount][rowCount];
+unsigned long lastDebounceMs;
 
 char keyboard[colCount][rowCount] = {
   {'q', 'w', NULL, 'a',  KEY_LEFT_ALT, ' ', KEY_LEFT_CTRL}, // sym, ALT, mic
@@ -202,6 +219,7 @@ volatile unsigned long blinkTimeout = millis() + BLINK_TIMEOUT;
 volatile bool isClockedDown = false;
 bool blinkState = true;
 bool idleWakeup = false;
+bool firstSleep = true;
 bool connectionNeedsReinit = false;
 
 bool anyKeyReleased = false;
@@ -259,6 +277,7 @@ void setup() {
     pinMode(KEYBOARD_LIGHT_PIN, OUTPUT);
 
     setKeyboardBacklight(keyboardLight, true);
+    lastDebounceMs = millis();
 }
 
 void updateStickyKeyStates() {
@@ -393,37 +412,104 @@ void wakeEverythingUp() {
   #endif
 }
 
-void readMatrix() {
+boolean anyKeyPressed = false;
+/**
+ * Returns whether any key was changed (true == at least one key changed state)
+ */
+boolean readMatrix(byte debouceMsSinceLast) {
   int delayTime = 0;
   anyKeyReleased = false;
-  // row: interate through the rows
+  boolean anyKeyChanged = false;
+  boolean anyKeyPressed = true;
+  #ifdef FASTCHECK
+    #ifdef FASTCOLCHECK_D
+      DDRD |= FASTCOLCHECK_D;
+      PORTD &= ~FASTCOLCHECK_D;
+    #endif
+    #ifdef FASTROWCHECK_B
+      DDRB &= ~FASTROWCHECK_B;
+      PORTB |= FASTROWCHECK_B;
+    #endif
+    #ifdef FASTROWCHECK_C
+      DDRC &= ~FASTROWCHECK_C;
+      PORTC |= FASTROWCHECK_C;
+    #endif
+    #ifdef FASTROWCHECK_D
+      DDRD &= ~FASTROWCHECK_D;
+      PORTD |= FASTROWCHECK_D;
+    #endif
+    #ifdef FASTROWCHECK_E
+      DDRE &= ~FASTROWCHECK_E;
+      PORTE |= FASTROWCHECK_E;
+    #endif
+    #ifdef FASTROWCHECK_F
+      DDRF &= ~FASTROWCHECK_F;
+      PORTF |= FASTROWCHECK_F;
+    #endif
+    delayMicroseconds(10);
+    anyKeyPressed = false;
+    #ifdef FASTROWCHECK_B
+      anyKeyPressed |= ((~PINB) & FASTROWCHECK_B);
+      PORTB &= ~FASTROWCHECK_B;
+    #endif
+    #ifdef FASTROWCHECK_C
+      anyKeyPressed |= ((~PINC) & FASTROWCHECK_C);
+      PORTC &= ~FASTROWCHECK_C;
+    #endif
+    #ifdef FASTROWCHECK_D
+      anyKeyPressed |= ((~PIND) & FASTROWCHECK_D);
+      PORTD &= ~FASTROWCHECK_D;
+    #endif
+    #ifdef FASTROWCHECK_E
+      anyKeyPressed |= ((~PINE) & FASTROWCHECK_E);
+      PORTE &= ~FASTROWCHECK_E;
+    #endif
+    #ifdef FASTROWCHECK_F
+      anyKeyPressed |= ((~PINF) & FASTROWCHECK_F);
+      PORTF &= ~FASTROWCHECK_F;
+    #endif
+    #ifdef FASTCOLCHECK_D
+      DDRD &= ~FASTCOLCHECK_D;
+    #endif
+  #endif
+
+  
   for (int rowIndex=0; rowIndex < rowCount; rowIndex++) {
     // iterate the columns
     byte curRow = rows[rowIndex];
-    pinMode(curRow, INPUT_PULLUP);
+    if (anyKeyPressed) {
+      pinMode(curRow, INPUT_PULLUP);
+    }
     
     for (int colIndex=0; colIndex < colCount; colIndex++) {
       // col: set to output to low
       byte curCol = cols[colIndex];
-      #ifdef FASTCOLS
-        FASTCOLS_PINCONFIG = FASTCOLS_PINCONFIG | (1 << curCol);
-        FASTCOLS_PORT = FASTCOLS_PORT & !(1 << curCol);
-      #else
-        pinMode(curCol, OUTPUT);
-        digitalWrite(curCol, LOW);
-      #endif
+      if (anyKeyPressed) {
+        #ifdef FASTCOLS
+          FASTCOLS_PINCONFIG = FASTCOLS_PINCONFIG | (1 << curCol);
+          FASTCOLS_PORT = FASTCOLS_PORT & !(1 << curCol);
+        #else
+          pinMode(curCol, OUTPUT);
+          digitalWrite(curCol, LOW);
+        #endif
+      }
 
-      if (debounceLoops[colIndex][rowIndex]>0) { // If debouncing is still active for this key, ignore all input
-        debounceLoops[colIndex][rowIndex]--;
+      if (debounceMs[colIndex][rowIndex]>0) { // If debouncing is still active for this key, ignore all input
+        if (debouceMsSinceLast>=debounceMs[colIndex][rowIndex]) {
+          debounceMs[colIndex][rowIndex] -= debouceMsSinceLast;
+        } else {
+          debounceMs[colIndex][rowIndex] = 0;
+        }
         changedValue[colIndex][rowIndex] = false;
       } else { // If debouncing is not active, process the key press
-        bool buttonPressed = (digitalRead(curRow) == LOW);
+        bool buttonPressed = (anyKeyPressed) && (digitalRead(curRow) == LOW);
         
         keys[colIndex][rowIndex] = buttonPressed;
         if ((lastValue[colIndex][rowIndex] != buttonPressed)) {
           changedValue[colIndex][rowIndex] = true;
-          debounceLoops[colIndex][rowIndex] = DEBOUNCE_LOOPS;
+          debounceMs[colIndex][rowIndex] = DEBOUNCE_MS;
           anyKeyReleased = anyKeyReleased | buttonPressed;
+          anyKeyChanged = true;
         } else {
           changedValue[colIndex][rowIndex] = false;
         }
@@ -431,15 +517,44 @@ void readMatrix() {
         lastValue[colIndex][rowIndex] = buttonPressed;
       }
 
-      #ifdef FASTCOLS
-        FASTCOLS_PINCONFIG = FASTCOLS_PINCONFIG & !(1 << curCol);
-        FASTCOLS_PORT = FASTCOLS_PORT & !(1 << curCol);
-      #else
-        pinMode(curCol, INPUT);
-      #endif
+      if (anyKeyPressed) {
+        #ifdef FASTCOLS
+          FASTCOLS_PINCONFIG = FASTCOLS_PINCONFIG & !(1 << curCol);
+          FASTCOLS_PORT = FASTCOLS_PORT & !(1 << curCol);
+        #else
+          pinMode(curCol, INPUT);
+        #endif
+      }
     }
-    pinMode(curRow, INPUT);
+    if (anyKeyPressed) {
+      pinMode(curRow, INPUT);
+    }
   }
+
+  #ifdef FASTROWCHECK_B
+    DDRB &= ~FASTROWCHECK_B;
+    PORTB |= FASTROWCHECK_B;
+  #endif
+  #ifdef FASTROWCHECK_C
+    DDRC &= ~FASTROWCHECK_C;
+    PORTC |= FASTROWCHECK_C;
+  #endif
+  #ifdef FASTROWCHECK_D
+    DDRD &= ~FASTROWCHECK_D;
+    PORTD |= FASTROWCHECK_D;
+  #endif
+  #ifdef FASTROWCHECK_E
+    DDRE &= ~FASTROWCHECK_E;
+    PORTE |= FASTROWCHECK_E;
+  #endif
+  #ifdef FASTROWCHECK_F
+    DDRF &= ~FASTROWCHECK_F;
+    PORTF |= FASTROWCHECK_F;
+  #endif
+  #ifdef FASTCOLCHECK_D
+    DDRD &= ~FASTCOLCHECK_D;
+    PORTD |= FASTCOLCHECK_D;
+  #endif
 
   updateStickyKeyStates();
   rolloverStickyKeyStates();
@@ -447,6 +562,7 @@ void readMatrix() {
   if (anyKeyReleased) {
     wakeEverythingUp();
   }
+  return anyKeyChanged;
 }
 
 bool keyPressed(int colIndex, int rowIndex) {
@@ -490,15 +606,15 @@ void setKeyboardBacklight(int pwmValue, bool on) {
 
 void unstickKeys() {
   if (anyKeyReleased) {
-    Serial.print("UNSTICK ");
-    Serial.print(stickyRsh);
-    Serial.print(" ");
+    //Serial.print("UNSTICK ");
+    //Serial.print(stickyRsh);
+    //Serial.print(" ");
     stickySym = (stickySym==STICKY_STATUS_STICKY) ? keyPressed(0, 2) : stickySym;
     stickyLsh = (stickyLsh==STICKY_STATUS_STICKY) ? keyPressed(1, 6) : stickyLsh;
     stickyRsh = (stickyRsh==STICKY_STATUS_STICKY) ? keyPressed(2, 3) : stickyRsh;
     stickyCtrl= (stickyCtrl==STICKY_STATUS_STICKY)? keyPressed(0, 6) : stickyCtrl;
     stickyAlt = (stickyAlt==STICKY_STATUS_STICKY) ? keyPressed(0, 4) : stickyAlt;
-    Serial.println(stickyRsh);
+    //Serial.println(stickyRsh);
   }
 }
 
@@ -571,29 +687,31 @@ void loop() {
   #if BOARD_TYPE == ESP32
   if (bleKeyboard.isConnected()) {
   #endif
-    readMatrix();
-    printMatrix();
-    unstickKeys();
+    if (readMatrix(startms-lastDebounceMs)) { // some key changed
+      printMatrix();
+      unstickKeys();
+
+      // increase backlight if mic key + sym key is pressed
+      if (keyActive(0,6) && keyPressed(0,2)) {
+        changeKeyboardBacklight(keyboardLightSteps, true);
+      }
+      // decrease backlight if mic key + right shift key is pressed
+      if (keyActive(0,6) && keyPressed(2,3)) {
+        changeKeyboardBacklight(-keyboardLightSteps, true);
+      }
+    
+      if ((keyActive(1,6) && keyPressed(2,3)) || (keyPressed(1,6) && keyActive(2,3))) {
+        cursorMode = !cursorMode;
+        resetStickyKeys();
+      }
+    }
+    lastDebounceMs = startms;
     //Serial.print("matrix: ");
     //Serial.println(millis()-startms);
   #if BOARD_TYPE == ESP32
   }
   #endif
 
-  // increase backlight if mic key + sym key is pressed
-  if (keyActive(0,6) && keyPressed(0,2)) {
-    changeKeyboardBacklight(keyboardLightSteps, true);
-  }
-
-  // decrease backlight if mic key + right shift key is pressed
-  if (keyActive(0,6) && keyPressed(2,3)) {
-    changeKeyboardBacklight(-keyboardLightSteps, true);
-  }
-
-  if ((keyActive(1,6) && keyPressed(2,3)) || (keyPressed(1,6) && keyActive(2,3))) {
-    cursorMode = !cursorMode;
-    resetStickyKeys();
-  }
   #ifdef BLINK_IN_CURSOR_MODE
     if (idleTimeout>=millis()) {
       if (cursorMode && blinkTimeout<millis()) {
@@ -615,9 +733,12 @@ void loop() {
     //Serial.println("Sleep");
     changeKeyboardBacklight(0, false);
     resetStickyKeys();
+    firstSleep = false;
     #ifdef POWERSAVE_ARDUINO_POWERDOWN
       Keyboard.end();
       USBDevice.detach();
+      USBCON = 0;
+      //USBDevice.standby();
       connectionNeedsReinit = true;
       LowPower.powerDown(SLEEP_120MS, ADC_OFF, BOD_OFF);
     #endif
@@ -629,7 +750,22 @@ void loop() {
       isClockedDown = true;
     #endif
     #ifdef POWERSAVE_ARDUINO_IDLE
+      power_twi_disable();
+      power_adc_disable();
+      power_spi_disable();
+      power_usart0_disable();
+      power_usart1_disable();
       LowPower.idle(SLEEP_120MS, ADC_OFF, TIMER4_OFF, TIMER3_OFF, TIMER1_OFF, TIMER0_OFF, SPI_OFF, USART1_OFF, TWI_OFF, USB_ON);
+      //LowPower.powerExtStandby(SLEEP_120MS, ADC_OFF, BOD_OFF, TIMER2_ON);
+      /*power_usb_disable();
+      power_spi_disable();
+      power_usart0_disable();
+      power_usart1_disable();
+      power_twi_disable();
+      power_adc_disable();
+      LowPower.adcNoiseReduction(SLEEP_120MS, ADC_OFF, TIMER2_ON);
+      power_usb_enable();*/
+      //LowPower.powerSave(SLEEP_120MS, ADC_OFF, BOD_OFF, TIMER2_ON);
     #endif
     #ifdef POWERSAVE_ESP32_LIGHT_SLEEP
       if (!connectionNeedsReinit) {
@@ -640,6 +776,11 @@ void loop() {
       esp_light_sleep_start();
     #endif
   }
+  #ifdef POWERSAVE_ARDUINO_IDLE_DURING_ACTIVE
+    if (!firstSleep) {
+      LowPower.idle(SLEEP_120MS, ADC_OFF, TIMER4_OFF, TIMER3_OFF, TIMER1_OFF, TIMER0_OFF, SPI_OFF, USART1_OFF, TWI_OFF, USB_ON);
+    }
+  #endif
   //Serial.print("total:  ");
   //Serial.println(millis()-startms);
 }
