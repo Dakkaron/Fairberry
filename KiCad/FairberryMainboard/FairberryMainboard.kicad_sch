@@ -2007,7 +2007,7 @@
     (uuid 71012496-527d-4cd0-a6dc-811c461127a0)
     (property "Reference" "J3" (id 0) (at 260.35 146.05 0))
     (property "Value" "Conn_02x02_Odd_Even" (id 1) (at 260.35 148.59 0))
-    (property "Footprint" "Fairberry:TestPoint_Pad_1+3_2.0x3.0mm_slim" (id 2) (at 259.08 152.4 0)
+    (property "Footprint" "Fairberry:TestPoint_Pad_2+2_Z_2.0x2.0mm" (id 2) (at 259.08 152.4 0)
       (effects (font (size 1.27 1.27)) hide)
     )
     (property "Datasheet" "~" (id 3) (at 259.08 152.4 0)
@@ -2142,7 +2142,7 @@
       (reference "J2") (unit 1) (value "Conn_02x03_Odd_Even") (footprint "Fairberry:TestPoint_Pad_2x3_2.0x3.0mm")
     )
     (path "/71012496-527d-4cd0-a6dc-811c461127a0"
-      (reference "J3") (unit 1) (value "Conn_02x02_Odd_Even") (footprint "Fairberry:TestPoint_Pad_1+3_2.0x3.0mm_slim")
+      (reference "J3") (unit 1) (value "Conn_02x02_Odd_Even") (footprint "Fairberry:TestPoint_Pad_2+2_Z_2.0x2.0mm")
     )
     (path "/05157f33-dcd2-4789-b6b5-f7fba29ec790"
       (reference "J4") (unit 1) (value "Conn_01x02") (footprint "Fairberry:TestPoint_Pad_1x2_2.0x3.0mm_Rotated")
