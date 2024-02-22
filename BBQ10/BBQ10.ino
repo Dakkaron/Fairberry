@@ -1,3 +1,4 @@
+#define FAIRBERRY_V0_3_0 3
 #define FAIRBERRY_V0_2_0 2
 #define FAIRBERRY_V0_1_1 1
 #define ARDUINO 10
@@ -9,8 +10,10 @@
 #define CHIP_ESP32 2
 
 #include "configuration.h"
+#include "constants.h"
+#include "keymaps.h"
 
-#if BOARD_TYPE == FAIRBERRY_V0_1_1 || BOARD_TYPE == FAIRBERRY_V0_2_0 || BOARD_TYPE == ARDUINO || BOARD_TYPE==BEETLE
+#if BOARD_TYPE == FAIRBERRY_V0_1_1 || BOARD_TYPE == FAIRBERRY_V0_2_0 || BOARD_TYPE == FAIRBERRY_V0_3_0 || BOARD_TYPE == ARDUINO || BOARD_TYPE==BEETLE
   #define CHIP_TYPE CHIP_ATMEGA32U4
 #elif BOARD_TYPE == ESP32
   #define CHIP_ESP32
@@ -55,7 +58,7 @@
   #endif
 #endif
 
-#if BOARD_TYPE == FAIRBERRY_V0_1_1 || BOARD_TYPE == FAIRBERRY_V0_2_0
+#if BOARD_TYPE == FAIRBERRY_V0_1_1 || BOARD_TYPE == FAIRBERRY_V0_2_0 || BOARD_TYPE == FAIRBERRY_V0_3_0
   #define F_CPU 16000000
   #define TX_RX_LED_INIT  DDRE |= (1<<6), DDRB |= (1<<0)
   #define TXLED0      PORTE |= (1<<6)
@@ -98,12 +101,31 @@
   #define KEYBOARD_RELEASE(key) bleKeyboard.release(key)
 #endif
 
-#if BOARD_TYPE == FAIRBERRY_V0_2_0
+#if BOARD_TYPE == FAIRBERRY_V0_3_0
   byte rows[] = {A1,7,8,9,10,5,A0};
-  //byte cols[] = {4,30,1,12,6};
+  //byte cols[] = {4,30,1,12,6}; // Arduino pinout for reference only
   byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
 
-  const byte KEYBOARD_LIGHT_PIN = 13;
+  #define KEYBOARD_LIGHT_PIN_1 13
+  #define KEYBOARD_LIGHT_PIN_2 11
+
+  #define FASTCHECK
+  #define FASTROWCHECK_B 0b01110000
+  #define FASTROWCHECK_C 0b01000000
+  #define FASTROWCHECK_E 0b01000000
+  #define FASTROWCHECK_F 0b11000000
+
+  #define FASTCOLCHECK_D 0b11111000
+  
+  #define FASTCOLS
+  #define FASTCOLS_PORT PORTD
+  #define FASTCOLS_PINCONFIG DDRD
+#elif BOARD_TYPE == FAIRBERRY_V0_2_0
+  byte rows[] = {A1,7,8,9,10,5,A0};
+  //byte cols[] = {4,30,1,12,6}; // Arduino pinout for reference only
+  byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
+
+  #define KEYBOARD_LIGHT_PIN_1 13
   #define LED0_PIN 0
   #define LED1_PIN 11
 
@@ -120,7 +142,7 @@
   #define FASTCOLS_PINCONFIG DDRD
 #elif BOARD_TYPE == FAIRBERRY_V0_1_1
   byte rows[] = {A1,A2,8,9,10,5,A0};
-  //byte cols[] = {4,30,1,12,6};
+  //byte cols[] = {4,30,1,12,6}; // Arduino pinout for reference only
   byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
 
   #define FASTCHECK
@@ -130,7 +152,7 @@
 
   #define FASTCOLCHECK_D 0b11111000
 
-  const byte KEYBOARD_LIGHT_PIN = 13;
+  #define KEYBOARD_LIGHT_PIN_1 13
   #define LED0_PIN 0
   #define LED1_PIN 11
   
@@ -141,18 +163,18 @@
   byte rows[] = {9,8,7,6,5,4,A2};
   byte cols[] = {A1,A0,15,14,16};
 
-  const byte KEYBOARD_LIGHT_PIN = 10;
+  #define KEYBOARD_LIGHT_PIN_1 10
 #elif BOARD_TYPE == BEETLE
   byte rows[] = {A5,11,10,9,18,19,20};
   byte cols[] = {3,2,0,14,15};
 
-  const byte KEYBOARD_LIGHT_PIN = 10;
+  #define KEYBOARD_LIGHT_PIN_1 10
 #elif BOARD_TYPE == ESP32
   #define RESET_PIN 33
   byte rows[] = {27,25,32,4,0,2,22};
   byte cols[] = {5,23,19,18,26};
 
-  const byte KEYBOARD_LIGHT_PIN = 35;
+  #define KEYBOARD_LIGHT_PIN_1 35
 #endif
 
 #ifdef DEBUG_SERIAL_INSTEAD_OF_USB
@@ -178,9 +200,6 @@
   #define KEY_F15 '?'
 #endif
 
-const int rowCount = sizeof(rows)/sizeof(rows[0]);
-const int colCount = sizeof(cols)/sizeof(cols[0]);
-
 
 
 bool keys[colCount][rowCount];
@@ -189,31 +208,10 @@ bool changedValue[colCount][rowCount];
 byte debounceMs[colCount][rowCount];
 unsigned long lastDebounceMs;
 
-char keyboard[colCount][rowCount] = {
-  {'q', 'w', NULL, 'a',  KEY_LEFT_ALT, ' ', KEY_LEFT_CTRL}, // sym, ALT, mic
-  {'e', 's', 'd',  'p',  'x',  'z', KEY_LEFT_SHIFT}, // left shift
-  {'r', 'g', 't',  KEY_RIGHT_SHIFT, 'v',  'c', 'f'}, // right shift
-  {'u', 'h', 'y',  KEY_RETURN, 'b',  'n', 'j'}, // Enter
-  {'o', 'l', 'i', KEY_BACKSPACE, '$', 'm', 'k'} // Backspace
-};
-char keyboard_symbol[colCount][rowCount] = {
-  {'#', '1', NULL, '*',  KEY_TAB, ' ', '0'}, // sym, ALT, SPACE
-  {'2', '4', '5',  '@',  '8',  '7', KEY_LEFT_SHIFT}, // left shift
-  {'3', '/', '(',  KEY_RIGHT_SHIFT, '?',  '9', '6'}, // right shift
-  {'_', ':', ')',  KEY_RETURN, '!',  ',', ';'}, // Enter
-  {'+', '"', '-', KEY_BACKSPACE, NULL, '.', '\''} // $/Vol
-};
-char keyboard_cursor[colCount][rowCount] = {
-  {KEY_ESC, KEY_UP_ARROW, NULL, KEY_LEFT_ARROW,  KEY_TAB, ' ', '0'}, // sym, ALT, SPACE
-  {'2', KEY_DOWN_ARROW, KEY_RIGHT_ARROW,  KEY_F15,  '8',  '7', KEY_LEFT_SHIFT}, // left shift
-  {'3', '/', '(',  KEY_RIGHT_SHIFT, '?',  '9', '6'}, // right shift
-  {KEY_F7, ':', ')',  KEY_F4, '!', ',', ';'}, // Enter
-  {KEY_F6, '"', KEY_F8, KEY_F3, KEY_F5, '.', '\''} // $/Vol
-};
-
 
 int keyboardLightSteps = 20;
-int keyboardLight = 200;
+int keyboardLight1 = DEFAULT_KEYBOARD_BRIGHTNESS;
+int keyboardLight2 = DEFAULT_KEYBOARD_BRIGHTNESS;
 volatile unsigned long idleTimeout = millis() + IDLE_TIMEOUT;
 volatile unsigned long blinkTimeout = millis() + BLINK_TIMEOUT;
 volatile bool isClockedDown = false;
@@ -221,6 +219,9 @@ bool blinkState = true;
 bool idleWakeup = false;
 bool firstSleep = true;
 bool connectionNeedsReinit = false;
+
+#define USB_ADDRESS_EXISTS (_BV(ADDEN)==0x80 && UDINT > 0)
+bool usbGotDisconnected = false;
 
 bool anyKeyReleased = false;
 
@@ -236,6 +237,8 @@ byte stickyAlt = STICKY_STATUS_OPEN;
 
 bool keyboardInit = false;
 bool cursorMode = false;
+
+void(* resetFunc) (void) = 0;
 
 void setup() {
     #ifdef LED0_PIN
@@ -259,12 +262,16 @@ void setup() {
       esp_wifi_set_mode(WIFI_MODE_NULL);
     #endif
     for(int i=0; i<rowCount; i++) {
-        //Serial.print(rows[i]); Serial.println(" as input");
+        #ifdef SERIAL_DEBUG_LOG
+          Serial.print(rows[i]); Serial.println(" as input");
+        #endif
         pinMode(rows[i], INPUT);
     }
  
     for (int i=0; i<colCount; i++) {
-        //Serial.print(cols[i]); Serial.println(" as input-pullup");
+        #ifdef SERIAL_DEBUG_LOG
+          Serial.print(cols[i]); Serial.println(" as input-pullup");
+        #endif
         #ifdef FASTCOLS
           FASTCOLS_PINCONFIG = FASTCOLS_PINCONFIG & !(1 << cols[i]);
           FASTCOLS_PORT = FASTCOLS_PORT & !(1 << cols[i]);
@@ -274,14 +281,23 @@ void setup() {
     }
 
     // set pins for the keyboard backlight
-    pinMode(KEYBOARD_LIGHT_PIN, OUTPUT);
+    #ifdef KEYBOARD_LIGHT_PIN_1
+      pinMode(KEYBOARD_LIGHT_PIN_1, OUTPUT);
+    #endif
+    #ifdef KEYBOARD_LIGHT_PIN_2
+      pinMode(KEYBOARD_LIGHT_PIN_2, OUTPUT);
+    #endif
 
-    setKeyboardBacklight(keyboardLight, true);
+    setKeyboardBacklight(keyboardLight1, keyboardLight2, true);
     lastDebounceMs = millis();
+
+    while (USBDevice.isSuspended()) {}
+    USBCON |= (1 << USBE);
+    USBDevice.attach();
 }
 
 void updateStickyKeyStates() {
-  if (keyPressed(0, 2) && !keyActive(0,6)) { // SYM(0,2) (inactive while CTRL(0,6) is held, because of brightness down)
+  if (keyPressed(K_SYM_COL, K_SYM_ROW) && !keyActive(K_MIC_COL, K_MIC_ROW)) { // SYM(0,2) (inactive while CTRL(0,6) is held, because of brightness down)
     byte tmp = stickySym;
     resetStickyKeys();
     stickySym = tmp + 1;
@@ -291,17 +307,17 @@ void updateStickyKeyStates() {
     resetStickyKeys();
     stickyLsh = tmp + 1;
   }
-  if (keyPressed(2, 3) && !keyActive(0,6)) { // RSH(2,3) (inactive while CTRL(0,6) is held, because of brightness down)
+  if (keyPressed(2, 3) && !keyActive(K_MIC_COL, K_MIC_ROW)) { // RSH(2,3) (inactive while CTRL(0,6) is held, because of brightness down)
     byte tmp = stickyRsh;
     resetStickyKeys();
     stickyRsh = tmp + 1;
   }
-  if (stickySym==STICKY_STATUS_OPEN && keyPressed(0, 6)) { // CTRL(0,6)
+  if (stickySym==STICKY_STATUS_OPEN && keyPressed(K_MIC_COL, K_MIC_ROW)) { // CTRL(0,6)
     byte tmp = stickyCtrl;
     resetStickyKeys();
     stickyCtrl = tmp + 1;
   }
-  if (stickySym==STICKY_STATUS_OPEN && keyPressed(0, 4)) { // ALT(0,6)
+  if (stickySym==STICKY_STATUS_OPEN && keyPressed(K_ALT_COL, K_ALT_ROW)) { // ALT(0,4)
     byte tmp = stickyAlt;
     resetStickyKeys();
     stickyAlt = tmp + 1;
@@ -379,7 +395,7 @@ void rolloverStickyKeyStates() {
 }
 
 void wakeEverythingUp() {
-  changeKeyboardBacklight(0, true);
+  changeKeyboardBacklight(0, 0, true);
   idleTimeout = millis() + IDLE_TIMEOUT;
   #ifdef POWERSAVE_ARDUINO_CLOCKDOWN
     if (isClockedDown) {
@@ -393,6 +409,9 @@ void wakeEverythingUp() {
   #ifdef POWERSAVE_ARDUINO_POWERDOWN
     if (connectionNeedsReinit) {
       connectionNeedsReinit = false;
+      while (USBDevice.isSuspended()) {}
+      USBCON |= (1 << USBE);
+      USBCON &= ~(1 << FRZCLK);
       USBDevice.attach();
       keyboardInit = false;
       delay(50);
@@ -495,7 +514,7 @@ boolean readMatrix(byte debouceMsSinceLast) {
       }
 
       if (debounceMs[colIndex][rowIndex]>0) { // If debouncing is still active for this key, ignore all input
-        if (debouceMsSinceLast>=debounceMs[colIndex][rowIndex]) {
+        if (debounceMs[colIndex][rowIndex] >= debouceMsSinceLast) {
           debounceMs[colIndex][rowIndex] -= debouceMsSinceLast;
         } else {
           debounceMs[colIndex][rowIndex] = 0;
@@ -585,36 +604,49 @@ bool isPrintableKey(int colIndex, int rowIndex) {
   return keyboard_symbol[colIndex][rowIndex] != NULL || keyboard[colIndex][rowIndex] != NULL;
 }
 
-void changeKeyboardBacklight(int change, bool on) {
-  setKeyboardBacklight(keyboardLight + change, on);
+void changeKeyboardBacklight(int change1, int change2, bool on) {
+  setKeyboardBacklight(keyboardLight1 + change1, keyboardLight2 + change2, on);
 }
 
-void setKeyboardBacklight(int pwmValue, bool on) {
-  if (pwmValue > 255) {
-    pwmValue = 255;
+void setKeyboardBacklight(int pwmValue1, int pwmValue2, bool on) {
+  if (pwmValue1 > 255) {
+    pwmValue1 = 255;
   }
-  if (pwmValue < 0) {
-    pwmValue = 0;
+  if (pwmValue1 < 0) {
+    pwmValue1 = 0;
   }
-  keyboardLight = pwmValue;
+  if (pwmValue2 > 255) {
+    pwmValue2 = 255;
+  }
+  if (pwmValue2 < 0) {
+    pwmValue2 = 0;
+  }
+  keyboardLight1 = pwmValue1;
+  keyboardLight2 = pwmValue2;
   if (on) {
-    analogWrite(KEYBOARD_LIGHT_PIN, keyboardLight);
+    #ifdef KEYBOARD_LIGHT_PIN_1
+      analogWrite(KEYBOARD_LIGHT_PIN_1, keyboardLight1);
+    #endif
+    #ifdef KEYBOARD_LIGHT_PIN_2
+      analogWrite(KEYBOARD_LIGHT_PIN_2, keyboardLight2);
+    #endif
   } else {
-    analogWrite(KEYBOARD_LIGHT_PIN, 0);
+    #ifdef KEYBOARD_LIGHT_PIN_1
+      analogWrite(KEYBOARD_LIGHT_PIN_1, 0);
+    #endif
+    #ifdef KEYBOARD_LIGHT_PIN_2
+      analogWrite(KEYBOARD_LIGHT_PIN_2, 0);
+    #endif
   }
 }
 
 void unstickKeys() {
   if (anyKeyReleased) {
-    //Serial.print("UNSTICK ");
-    //Serial.print(stickyRsh);
-    //Serial.print(" ");
     stickySym = (stickySym==STICKY_STATUS_STICKY) ? keyPressed(0, 2) : stickySym;
     stickyLsh = (stickyLsh==STICKY_STATUS_STICKY) ? keyPressed(1, 6) : stickyLsh;
     stickyRsh = (stickyRsh==STICKY_STATUS_STICKY) ? keyPressed(2, 3) : stickyRsh;
     stickyCtrl= (stickyCtrl==STICKY_STATUS_STICKY)? keyPressed(0, 6) : stickyCtrl;
     stickyAlt = (stickyAlt==STICKY_STATUS_STICKY) ? keyPressed(0, 4) : stickyAlt;
-    //Serial.println(stickyRsh);
   }
 }
 
@@ -638,7 +670,7 @@ void printMatrix() {
           toPrint = keyboard_cursor[colIndex][rowIndex];
           other1  = keyboard[colIndex][rowIndex];
           other2  = keyboard_symbol[colIndex][rowIndex];
-        } else if (stickySym != STICKY_STATUS_OPEN || keyActive(0,2)) {
+        } else if (stickySym != STICKY_STATUS_OPEN || keyPressed(K_SYM_COL, K_SYM_ROW)) {
           toPrint = keyboard_symbol[colIndex][rowIndex];
           other1  = keyboard[colIndex][rowIndex];
           other2  = keyboard_cursor[colIndex][rowIndex];
@@ -649,15 +681,15 @@ void printMatrix() {
         }
   
         // Workaround for left shift key dropping while being pressed
-        if (keyActive(1,6) && rowIndex!=1 && colIndex!=6) {
+        if (keyPressed(K_LSH_COL, K_LSH_ROW) && rowIndex!=1 && colIndex!=6) {
           KEYBOARD_RELEASE(KEY_LEFT_SHIFT);
           KEYBOARD_PRESS(KEY_LEFT_SHIFT);
         }
         if (keyPressed(colIndex, rowIndex)) {
           if (toPrint!=NULL) {
-            if (stickyLsh != STICKY_STATUS_OPEN && !keyActive(1, 6)) { KEYBOARD_PRESS(KEY_LEFT_SHIFT); }
-            if (stickyRsh != STICKY_STATUS_OPEN && !keyActive(2, 3)) { KEYBOARD_PRESS(KEY_RIGHT_SHIFT); }
-            if (stickyCtrl!= STICKY_STATUS_OPEN && !keyActive(0, 6)) { KEYBOARD_PRESS(KEY_LEFT_CTRL); }
+            if (stickyLsh != STICKY_STATUS_OPEN && !keyPressed(K_LSH_COL, K_LSH_ROW)) { KEYBOARD_PRESS(KEY_LEFT_SHIFT); }
+            if (stickyRsh != STICKY_STATUS_OPEN && !keyPressed(K_RSH_COL, K_RSH_ROW)) { KEYBOARD_PRESS(KEY_RIGHT_SHIFT); }
+            if (stickyCtrl!= STICKY_STATUS_OPEN && !keyActive(K_MIC_COL, K_MIC_ROW)) { KEYBOARD_PRESS(KEY_LEFT_CTRL); }
             if (stickyAlt != STICKY_STATUS_OPEN && !keyActive(0, 4)) { KEYBOARD_PRESS(KEY_LEFT_ALT); }
             KEYBOARD_PRESS(toPrint);
           }
@@ -671,14 +703,15 @@ void printMatrix() {
           if (other2!=NULL) {
             KEYBOARD_RELEASE(other2);
           }
-          if (!keyActive(1, 6)) { KEYBOARD_RELEASE(KEY_LEFT_SHIFT); }
-          if (!keyActive(2, 3)) { KEYBOARD_RELEASE(KEY_RIGHT_SHIFT); }
-          if (!keyActive(0, 6)) { KEYBOARD_RELEASE(KEY_LEFT_CTRL); }
+          if (!keyPressed(K_LSH_COL, K_LSH_ROW)) { KEYBOARD_RELEASE(KEY_LEFT_SHIFT); }
+          if (!keyPressed(K_RSH_COL, K_RSH_ROW)) { KEYBOARD_RELEASE(KEY_RIGHT_SHIFT); }
+          if (!keyActive(K_MIC_COL, K_MIC_ROW)) { KEYBOARD_RELEASE(KEY_LEFT_CTRL); }
           if (!keyActive(0, 4)) { KEYBOARD_RELEASE(KEY_LEFT_ALT); }
         }
       }
     }
   }
+  sei();
 }
 
 void loop() {
@@ -692,22 +725,29 @@ void loop() {
       unstickKeys();
 
       // increase backlight if mic key + sym key is pressed
-      if (keyActive(0,6) && keyPressed(0,2)) {
-        changeKeyboardBacklight(keyboardLightSteps, true);
+      if (keyActive(K_MIC_COL, K_MIC_ROW) && keyPressed(K_SYM_COL, K_SYM_ROW)) {
+        changeKeyboardBacklight(keyboardLightSteps, keyboardLightSteps, true);
       }
       // decrease backlight if mic key + right shift key is pressed
-      if (keyActive(0,6) && keyPressed(2,3)) {
-        changeKeyboardBacklight(-keyboardLightSteps, true);
+      if (keyActive(K_MIC_COL, K_MIC_ROW) && keyPressed(K_RSH_COL, K_RSH_ROW)) {
+        changeKeyboardBacklight(-keyboardLightSteps, -keyboardLightSteps, true);
+      }
+
+      // instant powersave mode if SYM + Enter is pressed
+      if (keyPressed(K_SYM_COL, K_SYM_ROW) && keyPressed(K_ENTER_COL, K_ENTER_ROW)) {
+        idleTimeout = 0;
       }
     
-      if ((keyActive(1,6) && keyPressed(2,3)) || (keyPressed(1,6) && keyActive(2,3))) {
+      if ((keyPressed(K_LSH_COL, K_LSH_ROW) && keyPressed(K_RSH_COL, K_RSH_ROW)) || (keyPressed(K_LSH_COL, K_LSH_ROW) && keyPressed(K_RSH_COL, K_RSH_ROW))) {
         cursorMode = !cursorMode;
         resetStickyKeys();
       }
     }
     lastDebounceMs = startms;
-    //Serial.print("matrix: ");
-    //Serial.println(millis()-startms);
+    #ifdef SERIAL_DEBUG_LOG
+      Serial.print("matrix: ");
+      Serial.println(millis()-startms);
+    #endif
   #if BOARD_TYPE == ESP32
   }
   #endif
@@ -720,27 +760,36 @@ void loop() {
       } else if (!cursorMode) {
         blinkState = true;
       }
-      changeKeyboardBacklight(0, blinkState);
+      changeKeyboardBacklight(0, 0, blinkState);
     }
   #endif
   #ifdef LED0_IN_CURSOR_MODE
     digitalWrite(LED0_PIN, cursorMode);
   #endif
 
-  //Serial.print("Loop ");
-  //Serial.println(idleTimeout-millis());
   if (idleTimeout<millis()) {
-    //Serial.println("Sleep");
-    changeKeyboardBacklight(0, false);
+    #ifdef SERIAL_DEBUG_LOG
+      Serial.println("Sleep");
+    #endif
+    changeKeyboardBacklight(0, 0, false);
     resetStickyKeys();
     firstSleep = false;
     #ifdef POWERSAVE_ARDUINO_POWERDOWN
-      Keyboard.end();
-      USBDevice.detach();
-      USBCON = 0;
-      //USBDevice.standby();
-      connectionNeedsReinit = true;
-      LowPower.powerDown(SLEEP_120MS, ADC_OFF, BOD_OFF);
+      if (!connectionNeedsReinit) {
+        Keyboard.end();
+        USBDevice.detach();
+        USBCON &= ~(1 << USBE);
+        //USBCON |= (1 << FRZCLK);
+        
+        //USBDevice.standby();
+
+        delay(300);
+        while (USBDevice.isSuspended()) {}
+        USBCON |= (1 << USBE);
+        USBDevice.attach();
+        connectionNeedsReinit = true;
+      }
+      LowPower.powerDown(SLEEP_15MS, ADC_OFF, BOD_OFF);
     #endif
     #ifdef POWERSAVE_ARDUINO_CLOCKDOWN
       CLKPR = 0b10000000;
@@ -755,17 +804,18 @@ void loop() {
       power_spi_disable();
       power_usart0_disable();
       power_usart1_disable();
+      if (!connectionNeedsReinit) {
+        Keyboard.end();
+        USBDevice.detach();
+        USBCON &= ~(1 << USBE);
+
+        delay(300);
+        while (USBDevice.isSuspended()) {}
+        USBCON |= (1 << USBE);
+        USBDevice.attach();
+        connectionNeedsReinit = true;
+      }
       LowPower.idle(SLEEP_120MS, ADC_OFF, TIMER4_OFF, TIMER3_OFF, TIMER1_OFF, TIMER0_OFF, SPI_OFF, USART1_OFF, TWI_OFF, USB_ON);
-      //LowPower.powerExtStandby(SLEEP_120MS, ADC_OFF, BOD_OFF, TIMER2_ON);
-      /*power_usb_disable();
-      power_spi_disable();
-      power_usart0_disable();
-      power_usart1_disable();
-      power_twi_disable();
-      power_adc_disable();
-      LowPower.adcNoiseReduction(SLEEP_120MS, ADC_OFF, TIMER2_ON);
-      power_usb_enable();*/
-      //LowPower.powerSave(SLEEP_120MS, ADC_OFF, BOD_OFF, TIMER2_ON);
     #endif
     #ifdef POWERSAVE_ESP32_LIGHT_SLEEP
       if (!connectionNeedsReinit) {
@@ -781,6 +831,8 @@ void loop() {
       LowPower.idle(SLEEP_120MS, ADC_OFF, TIMER4_OFF, TIMER3_OFF, TIMER1_OFF, TIMER0_OFF, SPI_OFF, USART1_OFF, TWI_OFF, USB_ON);
     }
   #endif
-  //Serial.print("total:  ");
-  //Serial.println(millis()-startms);
+  #ifdef SERIAL_DEBUG_LOG
+    Serial.print("total:  ");
+    Serial.println(millis()-startms);
+  #endif
 }
