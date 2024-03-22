@@ -2,7 +2,6 @@
 
 - Blackberry Q10 replacement keyboard
 - Assembled mainboard from JLCPCB
-- Hirose BM14B(0.8)-24DS-0.4V(53)
 - Solderable USB 2.0 OTG connector (can be USB C, Micro USB or even Lightning)
 - Thin wires to connect the USB board to the PCB (The thinner the better)
 - 6 Pin headers
@@ -17,17 +16,24 @@ First go to the release page (https://github.com/Dakkaron/Fairberry/releases) an
 
 Download gerber-*.zip, BOM.xlsx and CPL.xlsx.
 
-## PCB page
+## Order Hirose Keyboard Connector
 
-Now head to the JLCPCB PCB ordering page: https://cart.jlcpcb.com/quote?orderType=1&stencilLayer=2&stencilWidth=100&stencilLength=100&stencilCounts=5
+JLCPCB does not usually stock the keyboard connector (Hirose BM14B(0.8)-24DS-0.4V(53)). To get them to include this part in the assembly, you first need to order the part in their part sourcing programme. To do so:
 
-Upload the gerber-*.zip file. You can leave everything in the main box on default.
+- Head to the part ordering page: https://jlcpcb.com/parts
+- Log in to your JLCPCB account (create one if you don't have one)
+- At the part ordering page, search for this part: HRS(Hirose) BM14B(0.8)-24DS-0.4V(53)
+- There should be one result. Select it, choose an amount (2 or multiples of 5) and then press "Add to My Part Lib" and follow the order process
+- Sourcing the components will take a few weeks
+- Once they sourced the parts, they will refund you the difference between what you paid and what JLCPCB paid to the part seller, so it will likely be a bit cheaper than what you paid up front
 
-Scroll down until you find "PCB Assembly" and activate that.
+## Order PCB
 
-Depending on how many parts you want to order, select 2 or 5 under "PCB Assembly". Ordering more parts will be cheaper per part. Please note, you will receive 5 boards regardless, but only the selected amount will be populated (will have components soldered to it).
-
-Now press "Next".
+- Head to the JLCPCB PCB ordering page: https://cart.jlcpcb.com/quote?orderType=1&stencilLayer=2&stencilWidth=100&stencilLength=100&stencilCounts=5
+- Upload the gerber-*.zip file. You can leave everything in the main box on default.
+- Scroll down until you find "PCB Assembly" and activate that.
+- Depending on how many parts you want to order, select 2 or 5 under "PCB Assembly". Ordering more parts will be cheaper per part. Please note, you will receive 5 boards regardless, but only the selected amount will be populated (will have components soldered to it).
+- Press "Next".
 
 ## BOM and CPL
 
@@ -37,7 +43,7 @@ Press "Next" again.
 
 ## Component list
 
-You should now see a list of components. Verify that no errors (e.g. "Component out of stock") are displayed and all parts are selected.
+You should now see a list of components. Verify that no errors (e.g. "Component out of stock") are displayed and all parts are selected. You should be able to take the Hirose connector from your part library.
 
 Press "Next" again.
 
@@ -54,11 +60,7 @@ If you are really sure it looks the same, press "Save to cart" and procede with 
 
 # Remaining Assembly
 
-Sadly, JLCPCB doesn't supply the Hirose connector. If you want to, you can submit a parts request with them to maybe sway their mind.
-
-This is a rather difficult part to solder, since the pins are so tiny. If you don't have much experience, watch a few videos on how to solder QFN44 chips (they have the same pin dimensions) and practice on some scrap parts.
-
-Once this is done, you can solder the pin headers like in the picture below. These pin headers are only required for initial flashing, and can be desoldered afterwards, as they won't be needed anymore.
+Solder the programming headers like in the picture below. These pin headers are only required for initial flashing, and can be desoldered afterwards, as they won't be needed anymore.
 
 ![Placement of programming pin headers](https://github.com/Dakkaron/Fairberry/blob/main/Images/programmer_pin_headers.jpeg)
 
