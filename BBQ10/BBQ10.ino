@@ -12,194 +12,7 @@
 #include "configuration.h"
 #include "constants.h"
 #include "keymaps.h"
-
-#if BOARD_TYPE == FAIRBERRY_V0_1_1 || BOARD_TYPE == FAIRBERRY_V0_2_0 || BOARD_TYPE == FAIRBERRY_V0_3_0 || BOARD_TYPE == ARDUINO || BOARD_TYPE==BEETLE
-  #define CHIP_TYPE CHIP_ATMEGA32U4
-#elif BOARD_TYPE == ESP32
-  #define CHIP_ESP32
-#endif
-
-#if defined(POWERSAVE_ARDUINO_IDLE) && defined(POWERSAVE_ARDUINO_POWERDOWN)
-  #error "Cannot have POWERSAVE_ARDUINO_IDLE and POWERSAVE_ARDUINO_POWERDOWN at the same time!"
-#endif
-
-#if CHIP_TYPE != CHIP_ATMEGA32U4 && defined(POWERSAVE_ARDUINO_IDLE)
-  #error "Only boards with ATMEGA32U4 chips suport POWERSAVE_ARDUINO_IDLE!"
-#endif
-
-#if CHIP_TYPE != CHIP_ATMEGA32U4 && defined(POWERSAVE_ARDUINO_POWERDOWN)
-  #error "Only boards with ATMEGA32U4 chips suport POWERSAVE_ARDUINO_POWERDOWN!"
-#endif
-
-#if defined(POWERSAVE_ARDUINO_CLOCKDOWN) && !defined(ARDUINO_CLOCKDOWN_DIVISION)
-  #error "ARDUINO_CLOCKDOWN_DIVISION needs to be set (to 1,2,4,8,16,32,64,128 or 256) if POWERSAVE_ARDUINO_CLOCKDOWN is enabled"
-#endif
-
-#ifdef ARDUINO_CLOCKDOWN_DIVISION
-  #define ARDUINO_CLOCKDOWN_RESET_VALUE 0b00000000
-  #if ARDUINO_CLOCKDOWN_DIVISION == 1
-    #define ARDUINO_CLOCKDOWN_DIVISION_VALUE 0b00000000
-  #elif ARDUINO_CLOCKDOWN_DIVISION == 2
-    #define ARDUINO_CLOCKDOWN_DIVISION_VALUE 0b00000001
-  #elif ARDUINO_CLOCKDOWN_DIVISION == 4
-    #define ARDUINO_CLOCKDOWN_DIVISION_VALUE 0b00000010
-  #elif ARDUINO_CLOCKDOWN_DIVISION == 8
-    #define ARDUINO_CLOCKDOWN_DIVISION_VALUE 0b00000011
-  #elif ARDUINO_CLOCKDOWN_DIVISION == 16
-    #define ARDUINO_CLOCKDOWN_DIVISION_VALUE 0b00000100
-  #elif ARDUINO_CLOCKDOWN_DIVISION == 32
-    #define ARDUINO_CLOCKDOWN_DIVISION_VALUE 0b00000101
-  #elif ARDUINO_CLOCKDOWN_DIVISION == 64
-    #define ARDUINO_CLOCKDOWN_DIVISION_VALUE 0b00000110
-  #elif ARDUINO_CLOCKDOWN_DIVISION == 128
-    #define ARDUINO_CLOCKDOWN_DIVISION_VALUE 0b00000111
-  #elif ARDUINO_CLOCKDOWN_DIVISION == 256
-    #define ARDUINO_CLOCKDOWN_DIVISION_VALUE 0b00001000
-  #endif
-#endif
-
-#if BOARD_TYPE == FAIRBERRY_V0_1_1 || BOARD_TYPE == FAIRBERRY_V0_2_0 || BOARD_TYPE == FAIRBERRY_V0_3_0
-  #define F_CPU 16000000
-  #define TX_RX_LED_INIT  DDRE |= (1<<6), DDRB |= (1<<0)
-  #define TXLED0      PORTE |= (1<<6)
-  #define TXLED1      PORTE &= ~(1<<6)
-  #define RXLED0      PORTB |= (1<<0)
-  #define RXLED1      PORTB &= ~(1<<0)
-#endif
-
-#if CHIP_TYPE == CHIP_ATMEGA32U4
-  #if !defined(DEBUG_SERIAL_INSTEAD_OF_USB)
-    #include "Keyboard.h"
-  #endif
-  #include "LowPower.h"
-  #include <avr/power.h>
-
-  #ifdef DEBUG_SERIAL_INSTEAD_OF_USB
-    #define KEYBOARD_BEGIN(layout) Serial.begin()
-    #define KEYBOARD_BEGIN(layout) ;
-    #define KEYBOARD_PRESS(key) Serial.print("Pressed ");Serial.println(key);
-    #define KEYBOARD_RELEASE(key) Serial.print("Released ");Serial.println(key);
-  #else
-    #define KEYBOARD_BEGIN(layout) Keyboard.begin(layout)
-    #define KEYBOARD_END() Keyboard.end()
-    #define KEYBOARD_PRESS(key) Keyboard.press(key)
-    #define KEYBOARD_RELEASE(key) Keyboard.release(key)
-  #endif
-#elif BOARD_TYPE == ESP32
-  #include "analogWrite.h"
-  #define USE_NIMBLE
-  #include <BleKeyboard.h>
-  #include "esp_bt.h"
-  #include "esp_pm.h"
-  #include "esp_wifi.h"
-  BleKeyboard bleKeyboard;
-
-  #define SLEEP_DURATION 120000L
-  #define KEYBOARD_BEGIN(layout) bleKeyboard.begin()
-  #define KEYBOARD_END() bleKeyboard.end()
-  #define KEYBOARD_PRESS(key) bleKeyboard.press(key)
-  #define KEYBOARD_RELEASE(key) bleKeyboard.release(key)
-#endif
-
-#if BOARD_TYPE == FAIRBERRY_V0_3_0
-  byte rows[] = {A1,7,8,9,10,5,A0};
-  //byte cols[] = {4,30,1,12,6}; // Arduino pinout for reference only
-  byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
-
-  #define KEYBOARD_LIGHT_PIN_1 13
-  #define KEYBOARD_LIGHT_PIN_2 11
-
-  #define FASTCHECK
-  #define FASTROWCHECK_B 0b01110000
-  #define FASTROWCHECK_C 0b01000000
-  #define FASTROWCHECK_E 0b01000000
-  #define FASTROWCHECK_F 0b11000000
-
-  #define FASTCOLCHECK_D 0b11111000
-  
-  #define FASTCOLS
-  #define FASTCOLS_PORT PORTD
-  #define FASTCOLS_PINCONFIG DDRD
-#elif BOARD_TYPE == FAIRBERRY_V0_2_0
-  byte rows[] = {A1,7,8,9,10,5,A0};
-  //byte cols[] = {4,30,1,12,6}; // Arduino pinout for reference only
-  byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
-
-  #define KEYBOARD_LIGHT_PIN_1 13
-  #define LED0_PIN 0
-  #define LED1_PIN 11
-
-  #define FASTCHECK
-  #define FASTROWCHECK_B 0b01110000
-  #define FASTROWCHECK_C 0b01000000
-  #define FASTROWCHECK_E 0b01000000
-  #define FASTROWCHECK_F 0b11000000
-
-  #define FASTCOLCHECK_D 0b11111000
-  
-  #define FASTCOLS
-  #define FASTCOLS_PORT PORTD
-  #define FASTCOLS_PINCONFIG DDRD
-#elif BOARD_TYPE == FAIRBERRY_V0_1_1
-  byte rows[] = {A1,A2,8,9,10,5,A0};
-  //byte cols[] = {4,30,1,12,6}; // Arduino pinout for reference only
-  byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
-
-  #define FASTCHECK
-  #define FASTROWCHECK_B 0b01110000
-  #define FASTROWCHECK_C 0b01000000
-  #define FASTROWCHECK_F 0b11100000
-
-  #define FASTCOLCHECK_D 0b11111000
-
-  #define KEYBOARD_LIGHT_PIN_1 13
-  #define LED0_PIN 0
-  #define LED1_PIN 11
-  
-  #define FASTCOLS
-  #define FASTCOLS_PORT PORTD
-  #define FASTCOLS_PINCONFIG DDRD
-#elif BOARD_TYPE == ARDUINO
-  byte rows[] = {9,8,7,6,5,4,A2};
-  byte cols[] = {A1,A0,15,14,16};
-
-  #define KEYBOARD_LIGHT_PIN_1 10
-#elif BOARD_TYPE == BEETLE
-  byte rows[] = {A5,11,10,9,18,19,20};
-  byte cols[] = {3,2,0,14,15};
-
-  #define KEYBOARD_LIGHT_PIN_1 10
-#elif BOARD_TYPE == ESP32
-  #define RESET_PIN 33
-  byte rows[] = {27,25,32,4,0,2,22};
-  byte cols[] = {5,23,19,18,26};
-
-  #define KEYBOARD_LIGHT_PIN_1 35
-#endif
-
-#ifdef DEBUG_SERIAL_INSTEAD_OF_USB
-  #define KEY_LEFT_ALT '?'
-  #define KEY_LEFT_CTRL '?'
-  #define KEY_LEFT_SHIFT '?'
-  #define KEY_RIGHT_SHIFT '?'
-  #define KEY_RIGHT '?'
-  #define KEY_RETURN '?'
-  #define KEY_BACKSPACE '?'
-  #define KEY_ESC '?'
-  #define KEY_UP_ARROW '?'
-  #define KEY_LEFT_ARROW '?'
-  #define KEY_DOWN_ARROW '?'
-  #define KEY_RIGHT_ARROW '?'
-  #define KEY_TAB '?'
-  #define KEY_F3 '?'
-  #define KEY_F4 '?'
-  #define KEY_F5 '?'
-  #define KEY_F6 '?'
-  #define KEY_F7 '?'
-  #define KEY_F8 '?'
-  #define KEY_F15 '?'
-#endif
-
+#include "boards.h"
 
 
 bool keys[colCount][rowCount];
@@ -224,10 +37,6 @@ bool connectionNeedsReinit = false;
 bool usbGotDisconnected = false;
 
 bool anyKeyReleased = false;
-
-#define STICKY_STATUS_OPEN 0
-#define STICKY_STATUS_STICKY 1
-#define STICKY_STATUS_LOCKED 2
 
 byte stickySym = STICKY_STATUS_OPEN;
 byte stickyLsh = STICKY_STATUS_OPEN;
@@ -297,27 +106,27 @@ void setup() {
 }
 
 void updateStickyKeyStates() {
-  if (keyPressed(K_SYM_COL, K_SYM_ROW) && !keyActive(K_MIC_COL, K_MIC_ROW)) { // SYM(0,2) (inactive while CTRL(0,6) is held, because of brightness down)
+  if (keyPressed(K_SYM) && !keyActive(K_MIC)) { // SYM(0,2) (inactive while CTRL(0,6) is held, because of brightness down)
     byte tmp = stickySym;
     resetStickyKeys();
     stickySym = tmp + 1;
   }
-  if (keyPressed(1, 6)) { // LSH(1,6)
+  if (keyPressed(K_LSH)) { // LSH(1,6)
     byte tmp = stickyLsh;
     resetStickyKeys();
     stickyLsh = tmp + 1;
   }
-  if (keyPressed(2, 3) && !keyActive(K_MIC_COL, K_MIC_ROW)) { // RSH(2,3) (inactive while CTRL(0,6) is held, because of brightness down)
+  if (keyPressed(K_RSH) && !keyActive(K_MIC)) { // RSH(2,3) (inactive while CTRL(0,6) is held, because of brightness down)
     byte tmp = stickyRsh;
     resetStickyKeys();
     stickyRsh = tmp + 1;
   }
-  if (stickySym==STICKY_STATUS_OPEN && keyPressed(K_MIC_COL, K_MIC_ROW)) { // CTRL(0,6)
+  if (stickySym==STICKY_STATUS_OPEN && keyPressed(K_MIC)) { // CTRL(0,6)
     byte tmp = stickyCtrl;
     resetStickyKeys();
     stickyCtrl = tmp + 1;
   }
-  if (stickySym==STICKY_STATUS_OPEN && keyPressed(K_ALT_COL, K_ALT_ROW)) { // ALT(0,4)
+  if (stickySym==STICKY_STATUS_OPEN && keyPressed(K_ALT)) { // ALT(0,4)
     byte tmp = stickyAlt;
     resetStickyKeys();
     stickyAlt = tmp + 1;
@@ -642,11 +451,11 @@ void setKeyboardBacklight(int pwmValue1, int pwmValue2, bool on) {
 
 void unstickKeys() {
   if (anyKeyReleased) {
-    stickySym = (stickySym==STICKY_STATUS_STICKY) ? keyPressed(0, 2) : stickySym;
-    stickyLsh = (stickyLsh==STICKY_STATUS_STICKY) ? keyPressed(1, 6) : stickyLsh;
-    stickyRsh = (stickyRsh==STICKY_STATUS_STICKY) ? keyPressed(2, 3) : stickyRsh;
-    stickyCtrl= (stickyCtrl==STICKY_STATUS_STICKY)? keyPressed(0, 6) : stickyCtrl;
-    stickyAlt = (stickyAlt==STICKY_STATUS_STICKY) ? keyPressed(0, 4) : stickyAlt;
+    stickySym = (stickySym==STICKY_STATUS_STICKY) ? keyPressed(K_SYM) : stickySym;
+    stickyLsh = (stickyLsh==STICKY_STATUS_STICKY) ? keyPressed(K_LSH) : stickyLsh;
+    stickyRsh = (stickyRsh==STICKY_STATUS_STICKY) ? keyPressed(K_RSH) : stickyRsh;
+    stickyCtrl= (stickyCtrl==STICKY_STATUS_STICKY)? keyPressed(K_MIC) : stickyCtrl;
+    stickyAlt = (stickyAlt==STICKY_STATUS_STICKY) ? keyPressed(K_ALT) : stickyAlt;
   }
 }
 
@@ -670,7 +479,7 @@ void printMatrix() {
           toPrint = keyboard_cursor[colIndex][rowIndex];
           other1  = keyboard[colIndex][rowIndex];
           other2  = keyboard_symbol[colIndex][rowIndex];
-        } else if (stickySym != STICKY_STATUS_OPEN || keyPressed(K_SYM_COL, K_SYM_ROW)) {
+        } else if (stickySym != STICKY_STATUS_OPEN || keyPressed(K_SYM)) {
           toPrint = keyboard_symbol[colIndex][rowIndex];
           other1  = keyboard[colIndex][rowIndex];
           other2  = keyboard_cursor[colIndex][rowIndex];
@@ -681,16 +490,16 @@ void printMatrix() {
         }
   
         // Workaround for left shift key dropping while being pressed
-        if (keyPressed(K_LSH_COL, K_LSH_ROW) && rowIndex!=1 && colIndex!=6) {
+        if (keyPressed(K_LSH) && rowIndex!=1 && colIndex!=6) {
           KEYBOARD_RELEASE(KEY_LEFT_SHIFT);
           KEYBOARD_PRESS(KEY_LEFT_SHIFT);
         }
         if (keyPressed(colIndex, rowIndex)) {
           if (toPrint!=NULL) {
-            if (stickyLsh != STICKY_STATUS_OPEN && !keyPressed(K_LSH_COL, K_LSH_ROW)) { KEYBOARD_PRESS(KEY_LEFT_SHIFT); }
-            if (stickyRsh != STICKY_STATUS_OPEN && !keyPressed(K_RSH_COL, K_RSH_ROW)) { KEYBOARD_PRESS(KEY_RIGHT_SHIFT); }
-            if (stickyCtrl!= STICKY_STATUS_OPEN && !keyActive(K_MIC_COL, K_MIC_ROW)) { KEYBOARD_PRESS(KEY_LEFT_CTRL); }
-            if (stickyAlt != STICKY_STATUS_OPEN && !keyActive(0, 4)) { KEYBOARD_PRESS(KEY_LEFT_ALT); }
+            if (stickyLsh != STICKY_STATUS_OPEN && !keyPressed(K_LSH)) { KEYBOARD_PRESS(KEY_LEFT_SHIFT); }
+            if (stickyRsh != STICKY_STATUS_OPEN && !keyPressed(K_RSH)) { KEYBOARD_PRESS(KEY_RIGHT_SHIFT); }
+            if (stickyCtrl!= STICKY_STATUS_OPEN && !keyActive(K_MIC)) { KEYBOARD_PRESS(KEY_LEFT_CTRL); }
+            if (stickyAlt != STICKY_STATUS_OPEN && !keyActive(K_ALT)) { KEYBOARD_PRESS(KEY_LEFT_ALT); }
             KEYBOARD_PRESS(toPrint);
           }
         } else {
@@ -703,10 +512,10 @@ void printMatrix() {
           if (other2!=NULL) {
             KEYBOARD_RELEASE(other2);
           }
-          if (!keyPressed(K_LSH_COL, K_LSH_ROW)) { KEYBOARD_RELEASE(KEY_LEFT_SHIFT); }
-          if (!keyPressed(K_RSH_COL, K_RSH_ROW)) { KEYBOARD_RELEASE(KEY_RIGHT_SHIFT); }
-          if (!keyActive(K_MIC_COL, K_MIC_ROW)) { KEYBOARD_RELEASE(KEY_LEFT_CTRL); }
-          if (!keyActive(0, 4)) { KEYBOARD_RELEASE(KEY_LEFT_ALT); }
+          if (!keyPressed(K_LSH)) { KEYBOARD_RELEASE(KEY_LEFT_SHIFT); }
+          if (!keyPressed(K_RSH)) { KEYBOARD_RELEASE(KEY_RIGHT_SHIFT); }
+          if (!keyActive(K_MIC)) { KEYBOARD_RELEASE(KEY_LEFT_CTRL); }
+          if (!keyActive(K_ALT)) { KEYBOARD_RELEASE(KEY_LEFT_ALT); }
         }
       }
     }
@@ -725,20 +534,20 @@ void loop() {
       unstickKeys();
 
       // increase backlight if mic key + sym key is pressed
-      if (keyActive(K_MIC_COL, K_MIC_ROW) && keyPressed(K_SYM_COL, K_SYM_ROW)) {
+      if (keyActive(K_MIC) && keyPressed(K_SYM)) {
         changeKeyboardBacklight(keyboardLightSteps, keyboardLightSteps, true);
       }
       // decrease backlight if mic key + right shift key is pressed
-      if (keyActive(K_MIC_COL, K_MIC_ROW) && keyPressed(K_RSH_COL, K_RSH_ROW)) {
+      if (keyActive(K_MIC) && keyPressed(K_RSH)) {
         changeKeyboardBacklight(-keyboardLightSteps, -keyboardLightSteps, true);
       }
 
       // instant powersave mode if SYM + Enter is pressed
-      if (keyPressed(K_SYM_COL, K_SYM_ROW) && keyPressed(K_ENTER_COL, K_ENTER_ROW)) {
+      if (keyActive(K_SYM) && keyPressed(K_ENTER)) {
         idleTimeout = 0;
       }
     
-      if ((keyPressed(K_LSH_COL, K_LSH_ROW) && keyPressed(K_RSH_COL, K_RSH_ROW)) || (keyPressed(K_LSH_COL, K_LSH_ROW) && keyPressed(K_RSH_COL, K_RSH_ROW))) {
+      if ((keyPressed(K_LSH) && keyActive(K_RSH)) || (keyActive(K_LSH) && keyPressed(K_RSH))) {
         cursorMode = !cursorMode;
         resetStickyKeys();
       }
