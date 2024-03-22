@@ -1,3 +1,7 @@
+// Fairberry Keyboard Firmware © 2024 by Dakkaron is licensed under Attribution-NonCommercial-ShareAlike 4.0 International.
+// To view a copy of this license, visit http://creativecommons.org/licenses/by-nc-sa/4.0/
+// Version 3
+
 #define FAIRBERRY_V0_3_0 3
 #define FAIRBERRY_V0_2_0 2
 #define FAIRBERRY_V0_1_1 1
