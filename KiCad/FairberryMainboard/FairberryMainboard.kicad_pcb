@@ -74,7 +74,7 @@
       (mirror false)
       (drillshape 0)
       (scaleselection 1)
-      (outputdirectory "gerber")
+      (outputdirectory "gerber/")
     )
   )
 
@@ -704,7 +704,7 @@
     (property "Sheetname" "")
     (path "/05157f33-dcd2-4789-b6b5-f7fba29ec790")
     (attr exclude_from_pos_files)
-    (fp_text reference "J4" (at -3.8 -0.4 90) (layer "F.SilkS")
+    (fp_text reference "" (at -3.8 -0.4 90) (layer "F.SilkS") hide
       (effects (font (size 1 1) (thickness 0.15)))
       (tstamp 070d6cca-fb45-4f16-b66c-3a15235039b0)
     )
@@ -905,7 +905,7 @@
   (gr_text "JLCJLCJLCJLC" (at 176.85 95.35) (layer "B.SilkS") (tstamp 1e87bc74-c654-4cbe-8686-4cfc7180ae26)
     (effects (font (size 1.5 1.5) (thickness 0.3)) (justify mirror))
   )
-  (gr_text "14.02.2024\nFairberry\nv0.3.0\n©Dakkaron, 2024" (at 191.15 87.9) (layer "B.SilkS") (tstamp e3f729bb-a633-4e03-b97c-9125f2ad6ee9)
+  (gr_text "07.03.2024\nFairberry\nv0.3.0\n©Dakkaron, 2024" (at 191.15 87.9) (layer "B.SilkS") (tstamp e3f729bb-a633-4e03-b97c-9125f2ad6ee9)
     (effects (font (size 1.5 1.5) (thickness 0.3)) (justify left mirror))
   )
   (gr_text "2" (at 155.6 96 270) (layer "F.SilkS") (tstamp 9a9645a3-2a85-4b3b-b7ad-6ad2be14699e)
@@ -1630,7 +1630,6 @@
     (polygon
       (pts
         (xy 192 97)
-        (xy 153.5 97)
         (xy 153.5 97)
         (xy 153.5 88)
         (xy 175.5 88)
