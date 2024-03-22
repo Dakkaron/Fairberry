@@ -51,7 +51,7 @@ Press "Next" again.
 
 The next page shows a rendering of the component placement. Verify (multiple times) that the image looks exactly as the image below. Especially all the pink markings need to be exactly the same.
 
-![Component placement image](https://github.com/Dakkaron/Fairberry/blob/main/Images/CPL_v0.2.0.png)
+![Component placement image](https://github.com/Dakkaron/Fairberry/blob/main/Images/CPL_v0.3.0.png)
 
 If one of the parts is rotated wrong (indicated by the pink markings being in the wrong location), select the component and use the "All Rotate Right/Left" buttons at the top to fix it.
 
@@ -76,6 +76,9 @@ Make sure you are using pinout for the right mainboard version.
 
 ## v0.2.0
 ![Fairberry v0.2.0 pinout](https://github.com/Dakkaron/Fairberry/blob/main/Images/Pinout_v0.2.0.png)
+
+## v0.3.0
+![Fairberry v0.3.0 pinout](https://github.com/Dakkaron/Fairberry/blob/main/Images/Pinout_v0.3.0.png)
 
 Now solder the USB connector to the USB port on the Fairberry mainboard. Take care to get the pinout right and not cause any shorts.
 
@@ -120,7 +123,7 @@ Open the file configuration.h in the Arduino IDE.
 
 Find this line
 
-    #define BOARD_TYPE FAIRBERRY_V0_2_0
+    #define BOARD_TYPE FAIRBERRY_V0_3_0
 
 and adjust the board type to the version that you are using.
 
