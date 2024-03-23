@@ -6,7 +6,7 @@ The Fairberry keyboard is detachable and can be used without any modifications o
 
 ## What can you expect?
 
-<img alt="Frontal shot of the keyboard attached to a Fairphone 4" src="https://github.com/Dakkaron/Fairberry/raw/main/Images/black_standing.jpg" width="40%">
+<img alt="Samsung Galaxy A54 and Fairphone 4 with Fairberry keyboards" src="https://github.com/Dakkaron/Fairberry/raw/main/Images/frontpage_image.jpg">
 
 ### Demo video
 [![Demo video showing the functionality of the Fairberry keyboard](https://img.youtube.com/vi/iDb8_ld9gOQ/0.jpg)](https://www.youtube.com/watch?v=iDb8_ld9gOQ)
