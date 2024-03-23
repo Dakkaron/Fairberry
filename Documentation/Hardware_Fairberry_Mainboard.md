@@ -72,13 +72,14 @@ Make sure you are using pinout for the right mainboard version.
 ![USBASP pinout](https://github.com/Dakkaron/Fairberry/blob/main/Images/USBASP_pinout.png)
 
 ## v0.1.1
-![Fairberry v0.1.1 pinout](https://github.com/Dakkaron/Fairberry/blob/main/Images/Pinout_v0.1.1.png)
+![]()
+<img alt="Fairberry v0.1.1 pinout" src="https://github.com/Dakkaron/Fairberry/blob/main/Images/Pinout_v0.1.1.png" style="width:30%">
 
 ## v0.2.0
-![Fairberry v0.2.0 pinout](https://github.com/Dakkaron/Fairberry/blob/main/Images/Pinout_v0.2.0.png)
+<img alt="Fairberry v0.2.0 pinout" src="https://github.com/Dakkaron/Fairberry/blob/main/Images/Pinout_v0.2.0.png" style="width:30%">
 
 ## v0.3.0
-![Fairberry v0.3.0 pinout](https://github.com/Dakkaron/Fairberry/blob/main/Images/Pinout_v0.3.0.png)
+<img alt="Fairberry v0.3.0 pinout" src="https://github.com/Dakkaron/Fairberry/blob/main/Images/Pinout_v0.3.0.png" style="width:30%">
 
 Now solder the USB connector to the USB port on the Fairberry mainboard. Take care to get the pinout right and not cause any shorts.
 
@@ -149,11 +150,28 @@ If you know which pin is at fault, try to carefully solder it on with a fine-tip
 
 ## Generating the 3D-print file for the case
 
-TBD
+### Prerequisites
+- Install [OpenSCAD](https://openscad.org/)
+- Download and extract the Source Code zip file from [the newest release](https://github.com/Dakkaron/Fairberry/releases)
+- Open `Fairberry-x.x.x/Case/Generator/Fairberry.scad` in OpenSCAD
+
+### Customizing
+- In the `Fairberry.scad` script, set the `SCREEN_PROTECTOR_HEIGHT` to the thickness of your screen protector. If you don't use one, set it to `0`.
+- Set the `EXTRUSION_WIDTH` to the extrusion width of your 3D printer. For 0.4mm nozzles, it's usually 0.48. If you use a resin printer, leave it at 0.4.
+- If you are using a Fairphone 4 or a Samsung Galaxy A54, comment out the line `include <presets/Custom.scad>` by placing a double slash (`//`) at the beginning of the line, and uncomment the line fitting your phone. You can skip the rest of the customization.
+- If you are using a different phone, open up `Fairberry-x.x.x/Case/Generator/presets/Custom.scad` in OpenSCAD and customize the values in there to your liking. To preview the changes, save your changes in the `Custom.scad` and then open up `Fairberry.scad` in OpenSCAD and press F5 to generate a preview.
+- When using `Custom.scad`, it is recommended to find a dummy STL of your phone. [Yeggi.com](https://www.yeggi.com/) and [Grabcad](https://grabcad.com/) are good sources for dummy phone models.
+
+### Generating the file
+- Once everything is customized to your liking, open `Fairberry.scad` and press F5 to generate a preview.
+- Press F6 to render the file (this may take multiple minutes depending on your hardware).
+- Press F7 and save the resulting STL file as `Fairberry.stl`.
 
 ## Printing the case
 
-TBD
+You need to print two files: The `Fairberry.stl` you generated in the last step and the `Fairberry-x.x.x/Case/Generator/USB_Clamp.stl`.
+
+If you don't own a 3D printer, [JLCPCB](https://jlc3dp.com/3d-printing-quote) is a good place to start.
 
 ## Assembly
 
