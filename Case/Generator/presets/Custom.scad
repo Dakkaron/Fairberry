@@ -29,4 +29,4 @@ CASE_TOP_ROUNDING_OFFSET=1; // Increasing this number makes the top less rounded
 
 KEYBOARD_PHONE_GAP_PERIMETERS=2; // Thickness of the separator between keyboard and phone screen
 
-FORCE_HOLE_CUTAWAYS=true;
+FORCE_HOLE_CUTAWAYS=true; // Will cut holes for USB and speakers even if a dummy file is selected. Use this if the holes aren't included in the dummy file.
