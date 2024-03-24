@@ -483,7 +483,7 @@ void printMatrix() {
           toPrint = keyboard_cursor[colIndex][rowIndex];
           other1  = keyboard[colIndex][rowIndex];
           other2  = keyboard_symbol[colIndex][rowIndex];
-        } else if (stickySym != STICKY_STATUS_OPEN || keyPressed(K_SYM)) {
+        } else if (stickySym != STICKY_STATUS_OPEN || keyActive(K_SYM)) {
           toPrint = keyboard_symbol[colIndex][rowIndex];
           other1  = keyboard[colIndex][rowIndex];
           other2  = keyboard_cursor[colIndex][rowIndex];
@@ -494,14 +494,14 @@ void printMatrix() {
         }
   
         // Workaround for left shift key dropping while being pressed
-        if (keyPressed(K_LSH) && rowIndex!=1 && colIndex!=6) {
+        if (keyActive(K_LSH) && rowIndex!=1 && colIndex!=6) {
           KEYBOARD_RELEASE(KEY_LEFT_SHIFT);
           KEYBOARD_PRESS(KEY_LEFT_SHIFT);
         }
         if (keyPressed(colIndex, rowIndex)) {
           if (toPrint!=NULL) {
-            if (stickyLsh != STICKY_STATUS_OPEN && !keyPressed(K_LSH)) { KEYBOARD_PRESS(KEY_LEFT_SHIFT); }
-            if (stickyRsh != STICKY_STATUS_OPEN && !keyPressed(K_RSH)) { KEYBOARD_PRESS(KEY_RIGHT_SHIFT); }
+            if (stickyLsh != STICKY_STATUS_OPEN && !keyActive(K_LSH)) { KEYBOARD_PRESS(KEY_LEFT_SHIFT); }
+            if (stickyRsh != STICKY_STATUS_OPEN && !keyActive(K_RSH)) { KEYBOARD_PRESS(KEY_RIGHT_SHIFT); }
             if (stickyCtrl!= STICKY_STATUS_OPEN && !keyActive(K_MIC)) { KEYBOARD_PRESS(KEY_LEFT_CTRL); }
             if (stickyAlt != STICKY_STATUS_OPEN && !keyActive(K_ALT)) { KEYBOARD_PRESS(KEY_LEFT_ALT); }
             KEYBOARD_PRESS(toPrint);
@@ -516,8 +516,8 @@ void printMatrix() {
           if (other2!=NULL) {
             KEYBOARD_RELEASE(other2);
           }
-          if (!keyPressed(K_LSH)) { KEYBOARD_RELEASE(KEY_LEFT_SHIFT); }
-          if (!keyPressed(K_RSH)) { KEYBOARD_RELEASE(KEY_RIGHT_SHIFT); }
+          if (!keyActive(K_LSH)) { KEYBOARD_RELEASE(KEY_LEFT_SHIFT); }
+          if (!keyActive(K_RSH)) { KEYBOARD_RELEASE(KEY_RIGHT_SHIFT); }
           if (!keyActive(K_MIC)) { KEYBOARD_RELEASE(KEY_LEFT_CTRL); }
           if (!keyActive(K_ALT)) { KEYBOARD_RELEASE(KEY_LEFT_ALT); }
         }
