@@ -21,3 +21,6 @@
 #define K_ALT_COL 0
 #define K_ALT_ROW 4
 #define K_ALT K_ALT_COL, K_ALT_ROW
+
+#define KEY_PRESSED true
+#define KEY_RELEASED false

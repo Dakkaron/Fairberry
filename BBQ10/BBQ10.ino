@@ -33,7 +33,6 @@ volatile unsigned long idleTimeout = millis() + IDLE_TIMEOUT;
 volatile unsigned long blinkTimeout = millis() + BLINK_TIMEOUT;
 volatile bool isClockedDown = false;
 bool blinkState = true;
-bool idleWakeup = false;
 bool firstSleep = true;
 bool connectionNeedsReinit = false;
 
@@ -50,6 +49,10 @@ byte stickyAlt = STICKY_STATUS_OPEN;
 
 bool keyboardInit = false;
 bool cursorMode = false;
+
+#define KEYBOARD_CONNECTION_READY keyboardConnectionReadyTimeout < millis()
+#define ACTIVATE_KEYBOARD_CONNECTION_BUFFER() keyboardConnectionReadyTimeout = millis() + 1000;
+unsigned long keyboardConnectionReadyTimeout=0;
 
 void(* resetFunc) (void) = 0;
 
@@ -229,7 +232,11 @@ void wakeEverythingUp() {
       keyboardInit = false;
       delay(50);
       KEYBOARD_BEGIN(KeyboardLayout_en_US);
-      delay(300);
+      ACTIVATE_KEYBOARD_CONNECTION_BUFFER();
+      #ifdef SERIAL_DEBUG_LOG
+        Serial.print(millis());
+        Serial.println(": Activated connection buffer");
+      #endif
     }
   #endif
   #ifdef POWERSAVE_ESP32_LIGHT_SLEEP
@@ -391,7 +398,7 @@ boolean readMatrix(byte debouceMsSinceLast) {
   updateStickyKeyStates();
   rolloverStickyKeyStates();
 
-  if (anyKeyReleased) {
+  if (anyKeyPressed) {
     wakeEverythingUp();
   }
   return anyKeyChanged;
@@ -471,10 +478,99 @@ void resetStickyKeys() {
   stickyAlt = STICKY_STATUS_OPEN;
 }
 
+char keyPressBuffer[32]; //0=End of presses in buffer 
+uint32_t keyPressBufferType; //1=press, 0=release
+
+void flushKeyboardBuffer() {
+  #ifdef SERIAL_DEBUG_LOG
+    Serial.print(millis());
+    Serial.println(": Flushing buffer");
+  #endif
+  for (int i=0;i<32;i++) {
+    if (keyPressBuffer[i]!=0) {
+      if (keyPressBufferType & (1ull<<i)) {
+        KEYBOARD_PRESS(keyPressBuffer[i]);
+        #ifdef SERIAL_DEBUG_LOG
+          Serial.print("Pressed slot ");
+          Serial.print(i);
+          Serial.print("/");
+          Serial.println(keyPressBuffer[i]);
+        #endif
+      } else {
+        KEYBOARD_RELEASE(keyPressBuffer[i]);
+        #ifdef SERIAL_DEBUG_LOG
+          Serial.print("Released slot ");
+          Serial.print(i);
+          Serial.print("/");
+          Serial.println(keyPressBuffer[i]);
+        #endif
+        delay(30);
+      }
+      keyPressBuffer[i]=0;
+    }
+  }
+}
+
+void keyboardEventBuffered(char key, bool pressed) {
+  #ifdef SERIAL_DEBUG_LOG
+    Serial.print("Key event buffered: ");
+    Serial.print(key);
+    Serial.print("/");
+    Serial.print((uint8_t)key);
+    Serial.print("/");
+    Serial.print(pressed);
+    Serial.print("/");
+    Serial.println(KEYBOARD_CONNECTION_READY);
+  #endif
+  if (KEYBOARD_CONNECTION_READY) {
+    #ifdef SERIAL_DEBUG_LOG
+      Serial.println("Forwarding");
+    #endif
+    if (keyPressBuffer[0]!=0) {
+      flushKeyboardBuffer();
+    }
+    if (pressed) {
+      KEYBOARD_PRESS(key);
+    } else {
+      KEYBOARD_RELEASE(key);
+    }
+  } else {
+    #ifdef SERIAL_DEBUG_LOG
+      Serial.println("Buffering");
+    #endif
+    for (uint8_t i=0;i<32;i++) {
+      #ifdef SERIAL_DEBUG_LOG
+        Serial.print("Buffer slot ");
+        Serial.print(i);
+        Serial.print(": ");
+        Serial.println((uint8_t)keyPressBuffer[i]);
+      #endif
+      if (keyPressBuffer[i]==0) {
+        if (i>0 && keyPressBuffer[i-1]==key && (!!(keyPressBufferType&(1ull<<(i-1))))==pressed) {
+          #ifdef SERIAL_DEBUG_LOG
+            Serial.print("Skipped buffering: ");
+            Serial.print((!!(keyPressBufferType&(1ull<<(i-1)))));
+            Serial.print("/");
+            Serial.println(pressed);
+          #endif
+          break;
+        }
+        keyPressBuffer[i] = key;
+        keyPressBufferType &= ~(0ull<<i);
+        keyPressBufferType |= ((uint32_t)pressed)<<i;
+        #ifdef SERIAL_DEBUG_LOG
+          Serial.print("Buffered to slot ");
+          Serial.println(i);
+        #endif
+        break;
+      }
+    }
+  }
+}
+
 void printMatrix() {
   for (int rowIndex=0; rowIndex < rowCount; rowIndex++) {
     for (int colIndex=0; colIndex < colCount; colIndex++) {
-      // we only want to print if the key is pressed and it is a printable character
       if (keyChanged(colIndex, rowIndex) && isPrintableKey(colIndex, rowIndex)) {
         char toPrint;
         char other1;
@@ -495,31 +591,31 @@ void printMatrix() {
   
         // Workaround for left shift key dropping while being pressed
         if (keyActive(K_LSH) && rowIndex!=1 && colIndex!=6) {
-          KEYBOARD_RELEASE(KEY_LEFT_SHIFT);
-          KEYBOARD_PRESS(KEY_LEFT_SHIFT);
+          keyboardEventBuffered(KEY_LEFT_SHIFT, KEY_RELEASED);
+          keyboardEventBuffered(KEY_LEFT_SHIFT, KEY_PRESSED);
         }
         if (keyPressed(colIndex, rowIndex)) {
           if (toPrint!=NULL) {
-            if (stickyLsh != STICKY_STATUS_OPEN && !keyActive(K_LSH)) { KEYBOARD_PRESS(KEY_LEFT_SHIFT); }
-            if (stickyRsh != STICKY_STATUS_OPEN && !keyActive(K_RSH)) { KEYBOARD_PRESS(KEY_RIGHT_SHIFT); }
-            if (stickyCtrl!= STICKY_STATUS_OPEN && !keyActive(K_MIC)) { KEYBOARD_PRESS(KEY_LEFT_CTRL); }
-            if (stickyAlt != STICKY_STATUS_OPEN && !keyActive(K_ALT)) { KEYBOARD_PRESS(KEY_LEFT_ALT); }
-            KEYBOARD_PRESS(toPrint);
+            if (stickyLsh != STICKY_STATUS_OPEN && !keyActive(K_LSH)) { keyboardEventBuffered(KEY_LEFT_SHIFT, KEY_PRESSED); }
+            if (stickyRsh != STICKY_STATUS_OPEN && !keyActive(K_RSH)) { keyboardEventBuffered(KEY_RIGHT_SHIFT, KEY_PRESSED); }
+            if (stickyCtrl!= STICKY_STATUS_OPEN && !keyActive(K_MIC)) { keyboardEventBuffered(KEY_LEFT_CTRL, KEY_PRESSED); }
+            if (stickyAlt != STICKY_STATUS_OPEN && !keyActive(K_ALT)) { keyboardEventBuffered(KEY_LEFT_ALT, KEY_PRESSED); }
+            keyboardEventBuffered(toPrint, KEY_PRESSED);
           }
         } else {
           if (toPrint!=NULL) {
-            KEYBOARD_RELEASE(toPrint);
+            keyboardEventBuffered(toPrint, KEY_RELEASED);
           }
           if (other1!=NULL) {
-            KEYBOARD_RELEASE(other1);
+            keyboardEventBuffered(other1, KEY_RELEASED);
           }
           if (other2!=NULL) {
-            KEYBOARD_RELEASE(other2);
+            keyboardEventBuffered(other2, KEY_RELEASED);
           }
-          if (!keyActive(K_LSH)) { KEYBOARD_RELEASE(KEY_LEFT_SHIFT); }
-          if (!keyActive(K_RSH)) { KEYBOARD_RELEASE(KEY_RIGHT_SHIFT); }
-          if (!keyActive(K_MIC)) { KEYBOARD_RELEASE(KEY_LEFT_CTRL); }
-          if (!keyActive(K_ALT)) { KEYBOARD_RELEASE(KEY_LEFT_ALT); }
+          if (!keyActive(K_LSH)) { keyboardEventBuffered(KEY_LEFT_SHIFT, KEY_RELEASED); }
+          if (!keyActive(K_RSH)) { keyboardEventBuffered(KEY_RIGHT_SHIFT, KEY_RELEASED); }
+          if (!keyActive(K_MIC)) { keyboardEventBuffered(KEY_LEFT_CTRL, KEY_RELEASED); }
+          if (!keyActive(K_ALT)) { keyboardEventBuffered(KEY_LEFT_ALT, KEY_RELEASED); }
         }
       }
     }
@@ -528,7 +624,6 @@ void printMatrix() {
 }
 
 void loop() {
-  idleWakeup = false;
   unsigned long startms = millis();
   #if BOARD_TYPE == ESP32
   if (bleKeyboard.isConnected()) {
@@ -536,6 +631,9 @@ void loop() {
     if (readMatrix(startms-lastDebounceMs)) { // some key changed
       printMatrix();
       unstickKeys();
+      if (KEYBOARD_CONNECTION_READY && keyPressBuffer[0]!=0) {
+        flushKeyboardBuffer();
+      }
 
       // increase backlight if mic key + sym key is pressed
       if (keyActive(K_MIC) && keyPressed(K_SYM)) {
@@ -555,11 +653,15 @@ void loop() {
         cursorMode = !cursorMode;
         resetStickyKeys();
       }
+    } else {
+      if (KEYBOARD_CONNECTION_READY && keyPressBuffer[0]!=0) {
+        flushKeyboardBuffer();
+      }
     }
     lastDebounceMs = startms;
     #ifdef SERIAL_DEBUG_LOG
-      Serial.print("matrix: ");
-      Serial.println(millis()-startms);
+      //Serial.print("matrix: ");
+      //Serial.println(millis()-startms);
     #endif
   #if BOARD_TYPE == ESP32
   }
@@ -577,7 +679,7 @@ void loop() {
     }
   #endif
   #ifdef LED0_IN_CURSOR_MODE
-    digitalWrite(LED0_PIN, cursorMode);
+    digitalWrite(LED1_PIN, cursorMode);
   #endif
 
   if (idleTimeout<millis()) {
@@ -592,15 +694,11 @@ void loop() {
         Keyboard.end();
         USBDevice.detach();
         USBCON &= ~(1 << USBE);
-        //USBCON |= (1 << FRZCLK);
+        USBCON |= (1 << FRZCLK);
         
         //USBDevice.standby();
-
-        delay(300);
-        while (USBDevice.isSuspended()) {}
-        USBCON |= (1 << USBE);
-        USBDevice.attach();
         connectionNeedsReinit = true;
+        delay(2000);
       }
       LowPower.powerDown(SLEEP_15MS, ADC_OFF, BOD_OFF);
     #endif
@@ -645,7 +743,7 @@ void loop() {
     }
   #endif
   #ifdef SERIAL_DEBUG_LOG
-    Serial.print("total:  ");
-    Serial.println(millis()-startms);
+    //Serial.print("total:  ");
+    //Serial.println(millis()-startms);
   #endif
 }
