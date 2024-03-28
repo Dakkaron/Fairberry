@@ -30,11 +30,14 @@ int keyboardLightSteps = 20;
 int keyboardLight1 = DEFAULT_KEYBOARD_BRIGHTNESS;
 int keyboardLight2 = DEFAULT_KEYBOARD_BRIGHTNESS;
 volatile unsigned long idleTimeout = millis() + IDLE_TIMEOUT;
+volatile unsigned long backlightTimeout = millis() + BACKLIGHT_TIMEOUT;
 volatile unsigned long blinkTimeout = millis() + BLINK_TIMEOUT;
 volatile bool isClockedDown = false;
 bool blinkState = true;
+bool idleWakeup = false;
 bool firstSleep = true;
-bool connectionNeedsReinit = false;
+bool connectionNeedsReinit1 = false;
+volatile unsigned long connectionNeedsReinit2 = false;
 
 #define USB_ADDRESS_EXISTS (_BV(ADDEN)==0x80 && UDINT > 0)
 bool usbGotDisconnected = false;
@@ -46,12 +49,10 @@ byte stickyLsh = STICKY_STATUS_OPEN;
 byte stickyRsh = STICKY_STATUS_OPEN;
 byte stickyCtrl = STICKY_STATUS_OPEN;
 byte stickyAlt = STICKY_STATUS_OPEN;
-
-bool keyboardInit = false;
 bool cursorMode = false;
 
 #define KEYBOARD_CONNECTION_READY keyboardConnectionReadyTimeout < millis()
-#define ACTIVATE_KEYBOARD_CONNECTION_BUFFER() keyboardConnectionReadyTimeout = millis() + 1000;
+#define ACTIVATE_KEYBOARD_CONNECTION_BUFFER() keyboardConnectionReadyTimeout = millis() + 500;
 unsigned long keyboardConnectionReadyTimeout=0;
 
 void(* resetFunc) (void) = 0;
@@ -65,7 +66,6 @@ void setup() {
     #endif
     #if BOARD_TYPE == ESP32
       KEYBOARD_BEGIN(KeyboardLayout_en_US);
-      keyboardInit = true;
       
       esp_bt_sleep_enable();
       
@@ -213,6 +213,7 @@ void rolloverStickyKeyStates() {
 void wakeEverythingUp() {
   changeKeyboardBacklight(0, 0, true);
   idleTimeout = millis() + IDLE_TIMEOUT;
+  backlightTimeout = millis() + BACKLIGHT_TIMEOUT;
   #ifdef POWERSAVE_ARDUINO_CLOCKDOWN
     if (isClockedDown) {
       CLKPR = 0b10000000;
@@ -223,28 +224,28 @@ void wakeEverythingUp() {
     }
   #endif
   #ifdef POWERSAVE_ARDUINO_POWERDOWN
-    if (connectionNeedsReinit) {
-      connectionNeedsReinit = false;
-      while (USBDevice.isSuspended()) {}
-      USBCON |= (1 << USBE);
-      USBCON &= ~(1 << FRZCLK);
+    if (connectionNeedsReinit1) {
+      digitalWrite(LED1_PIN, 1);
+      connectionNeedsReinit1 = false;
+      connectionNeedsReinit2 = millis()+200;
       USBDevice.attach();
-      keyboardInit = false;
-      delay(50);
-      KEYBOARD_BEGIN(KeyboardLayout_en_US);
       ACTIVATE_KEYBOARD_CONNECTION_BUFFER();
+    } else if (connectionNeedsReinit2!=0 && connectionNeedsReinit2<millis()) {
+      KEYBOARD_BEGIN(KeyboardLayout_en_US);
       #ifdef SERIAL_DEBUG_LOG
         Serial.print(millis());
         Serial.println(": Activated connection buffer");
       #endif
+      digitalWrite(LED1_PIN, 0);
+      connectionNeedsReinit2 = 0;
     }
   #endif
   #ifdef POWERSAVE_ESP32_LIGHT_SLEEP
-    if (connectionNeedsReinit) {
+    if (connectionNeedsReinit1) {
       pinMode(RESET_PIN, OUTPUT);
       digitalWrite(RESET_PIN, LOW);
       
-      /*connectionNeedsReinit = false;
+      /*connectionNeedsReinit1 = false;
       btStart();
       KEYBOARD_BEGIN(KeyboardLayout_en_US);*/
     }
@@ -398,7 +399,7 @@ boolean readMatrix(byte debouceMsSinceLast) {
   updateStickyKeyStates();
   rolloverStickyKeyStates();
 
-  if (anyKeyPressed) {
+  if (anyKeyReleased) {
     wakeEverythingUp();
   }
   return anyKeyChanged;
@@ -486,9 +487,10 @@ void flushKeyboardBuffer() {
     Serial.print(millis());
     Serial.println(": Flushing buffer");
   #endif
-  for (int i=0;i<32;i++) {
+  for (uint8_t i=0;i<32;i++) {
     if (keyPressBuffer[i]!=0) {
-      if (keyPressBufferType & (1ull<<i)) {
+      bool pressed = !!(keyPressBufferType & (1ull<<i));
+      if (pressed) {
         KEYBOARD_PRESS(keyPressBuffer[i]);
         #ifdef SERIAL_DEBUG_LOG
           Serial.print("Pressed slot ");
@@ -496,6 +498,18 @@ void flushKeyboardBuffer() {
           Serial.print("/");
           Serial.println(keyPressBuffer[i]);
         #endif
+        bool foundRelease = false;
+        for (uint8_t j=i+1;j<32;j++) {
+          if (keyPressBuffer[j]==keyPressBuffer[i] && !(keyPressBufferType & (1ull<<i))) {
+            foundRelease = true;
+          }
+        }
+        if (!foundRelease) {
+          #ifdef SERIAL_DEBUG_LOG
+            Serial.println("Sending missing release");
+          #endif
+          KEYBOARD_RELEASE(keyPressBuffer[i]);
+        }
       } else {
         KEYBOARD_RELEASE(keyPressBuffer[i]);
         #ifdef SERIAL_DEBUG_LOG
@@ -538,6 +552,7 @@ void keyboardEventBuffered(char key, bool pressed) {
     #ifdef SERIAL_DEBUG_LOG
       Serial.println("Buffering");
     #endif
+    boolean foundPress = pressed; // Buffer all presses, buffer only releases with matching presses
     for (uint8_t i=0;i<32;i++) {
       #ifdef SERIAL_DEBUG_LOG
         Serial.print("Buffer slot ");
@@ -545,7 +560,16 @@ void keyboardEventBuffered(char key, bool pressed) {
         Serial.print(": ");
         Serial.println((uint8_t)keyPressBuffer[i]);
       #endif
+      if (!foundPress && keyPressBuffer[i]==key && (!(keyPressBufferType&(1ull<<(i-1))))==pressed) {
+        foundPress = true;
+      }
       if (keyPressBuffer[i]==0) {
+        if (!foundPress) {
+          #ifdef SERIAL_DEBUG_LOG
+            Serial.println("Skipped buffering due to no press found");
+          #endif
+          break;
+        }
         if (i>0 && keyPressBuffer[i-1]==key && (!!(keyPressBufferType&(1ull<<(i-1))))==pressed) {
           #ifdef SERIAL_DEBUG_LOG
             Serial.print("Skipped buffering: ");
@@ -631,9 +655,6 @@ void loop() {
     if (readMatrix(startms-lastDebounceMs)) { // some key changed
       printMatrix();
       unstickKeys();
-      if (KEYBOARD_CONNECTION_READY && keyPressBuffer[0]!=0) {
-        flushKeyboardBuffer();
-      }
 
       // increase backlight if mic key + sym key is pressed
       if (keyActive(K_MIC) && keyPressed(K_SYM)) {
@@ -647,6 +668,7 @@ void loop() {
       // instant powersave mode if SYM + Enter is pressed
       if (keyActive(K_SYM) && keyPressed(K_ENTER)) {
         idleTimeout = 0;
+        backlightTimeout = 0;
       }
     
       if ((keyPressed(K_LSH) && keyActive(K_RSH)) || (keyActive(K_LSH) && keyPressed(K_RSH))) {
@@ -668,7 +690,7 @@ void loop() {
   #endif
 
   #ifdef BLINK_IN_CURSOR_MODE
-    if (idleTimeout>=millis()) {
+    if (backlightTimeout>=millis()) {
       if (cursorMode && blinkTimeout<millis()) {
         blinkTimeout = millis() + BLINK_TIMEOUT;
         blinkState = !blinkState;
@@ -679,26 +701,32 @@ void loop() {
     }
   #endif
   #ifdef LED0_IN_CURSOR_MODE
-    digitalWrite(LED1_PIN, cursorMode);
+    digitalWrite(LED0_PIN, cursorMode);
   #endif
+
+  if (backlightTimeout<millis()) {
+    #ifdef SERIAL_DEBUG_LOG
+      Serial.println("Backlight off");
+    #endif
+    changeKeyboardBacklight(0, 0, false);
+  }
 
   if (idleTimeout<millis()) {
     #ifdef SERIAL_DEBUG_LOG
       Serial.println("Sleep");
     #endif
-    changeKeyboardBacklight(0, 0, false);
     resetStickyKeys();
     firstSleep = false;
     #ifdef POWERSAVE_ARDUINO_POWERDOWN
-      if (!connectionNeedsReinit) {
+      if (!connectionNeedsReinit1) {
         Keyboard.end();
         USBDevice.detach();
-        USBCON &= ~(1 << USBE);
-        USBCON |= (1 << FRZCLK);
         
-        //USBDevice.standby();
-        connectionNeedsReinit = true;
-        delay(2000);
+        //USBCON &= ~(1 << USBE);
+        //USBCON |= (1 << FRZCLK);
+        
+        delay(300);
+        connectionNeedsReinit1 = true;
       }
       LowPower.powerDown(SLEEP_15MS, ADC_OFF, BOD_OFF);
     #endif
@@ -715,7 +743,7 @@ void loop() {
       power_spi_disable();
       power_usart0_disable();
       power_usart1_disable();
-      if (!connectionNeedsReinit) {
+      if (!connectionNeedsReinit1) {
         Keyboard.end();
         USBDevice.detach();
         USBCON &= ~(1 << USBE);
@@ -724,14 +752,14 @@ void loop() {
         while (USBDevice.isSuspended()) {}
         USBCON |= (1 << USBE);
         USBDevice.attach();
-        connectionNeedsReinit = true;
+        connectionNeedsReinit1 = true;
       }
       LowPower.idle(SLEEP_120MS, ADC_OFF, TIMER4_OFF, TIMER3_OFF, TIMER1_OFF, TIMER0_OFF, SPI_OFF, USART1_OFF, TWI_OFF, USB_ON);
     #endif
     #ifdef POWERSAVE_ESP32_LIGHT_SLEEP
-      if (!connectionNeedsReinit) {
+      if (!connectionNeedsReinit1) {
         btStop();
-        connectionNeedsReinit = true;
+        connectionNeedsReinit1 = true;
       }
       esp_sleep_enable_timer_wakeup(SLEEP_DURATION);
       esp_light_sleep_start();
