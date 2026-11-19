@@ -5,7 +5,7 @@
 #define FAIRBERRY_V0_3_0 3
 #define FAIRBERRY_V0_2_0 2
 #define FAIRBERRY_V0_1_1 1
-#define ARDUINO 10
+#define BOARD_ARDUINO 10
 #define BEETLE 1101
 #define ESP32 1102
 
@@ -17,6 +17,7 @@
 #include "constants.h"
 #include "keymaps.h"
 #include "boards.h"
+#include "protocol.h"
 
 
 bool keys[colCount][rowCount];
@@ -54,6 +55,13 @@ bool cursorMode = false;
 void(* resetFunc) (void) = 0;
 
 void setup() {
+    loadFactoryDefaults();
+    loadKeymapFromEEPROM();
+
+    #if CHIP_TYPE == CHIP_ATMEGA32U4
+      Serial.begin(9600); // ignored by the USB CDC layer, sets the UART baud in debug mode
+    #endif
+
     #ifdef LED0_PIN
       pinMode(LED0_PIN, OUTPUT);
     #endif
@@ -414,7 +422,8 @@ bool keyActive(int colIndex, int rowIndex) {
 }
 
 bool isPrintableKey(int colIndex, int rowIndex) {
-  return keyboard_symbol[colIndex][rowIndex] != NULL || keyboard[colIndex][rowIndex] != NULL;
+  return !keyEntryEmpty(keymap[MODE_SYMBOL][colIndex][rowIndex]) ||
+         !keyEntryEmpty(keymap[MODE_NORMAL][colIndex][rowIndex]);
 }
 
 void changeKeyboardBacklight(int change1, int change2, bool on) {
@@ -471,26 +480,64 @@ void resetStickyKeys() {
   stickyAlt = STICKY_STATUS_OPEN;
 }
 
+void pressModBit(int bit) {
+  KEYBOARD_PRESS((uint8_t)(0xE0 + bit));
+}
+
+// Releases a modifier bit, but keeps it held while the physical key that
+// maps to that modifier is still pressed.
+void releaseModBit(int bit) {
+  switch (bit) {
+    case 0: if (keyActive(K_MIC)) return; break;
+    case 1: if (keyActive(K_LSH)) return; break;
+    case 2: if (keyActive(K_ALT)) return; break;
+    case 5: if (keyActive(K_RSH)) return; break;
+  }
+  KEYBOARD_RELEASE((uint8_t)(0xE0 + bit));
+}
+
+void pressEntry(const KeyEntry& entry) {
+  for (int bit = 0; bit < 8; bit++) {
+    if (entry.mods & (1 << bit)) {
+      pressModBit(bit);
+    }
+  }
+  if (entry.usage != 0) {
+    KEYBOARD_PRESS(entry.usage);
+  }
+}
+
+void releaseEntry(const KeyEntry& entry) {
+  if (entry.usage != 0) {
+    KEYBOARD_RELEASE(entry.usage);
+  }
+  for (int bit = 0; bit < 8; bit++) {
+    if (entry.mods & (1 << bit)) {
+      releaseModBit(bit);
+    }
+  }
+}
+
 void printMatrix() {
   for (int rowIndex=0; rowIndex < rowCount; rowIndex++) {
     for (int colIndex=0; colIndex < colCount; colIndex++) {
       // we only want to print if the key is pressed and it is a printable character
       if (keyChanged(colIndex, rowIndex) && isPrintableKey(colIndex, rowIndex)) {
-        char toPrint;
-        char other1;
-        char other2;
+        KeyEntry toPrint;
+        KeyEntry other1;
+        KeyEntry other2;
         if (cursorMode) {
-          toPrint = keyboard_cursor[colIndex][rowIndex];
-          other1  = keyboard[colIndex][rowIndex];
-          other2  = keyboard_symbol[colIndex][rowIndex];
+          toPrint = keymap[MODE_CURSOR][colIndex][rowIndex];
+          other1  = keymap[MODE_NORMAL][colIndex][rowIndex];
+          other2  = keymap[MODE_SYMBOL][colIndex][rowIndex];
         } else if (stickySym != STICKY_STATUS_OPEN || keyActive(K_SYM)) {
-          toPrint = keyboard_symbol[colIndex][rowIndex];
-          other1  = keyboard[colIndex][rowIndex];
-          other2  = keyboard_cursor[colIndex][rowIndex];
+          toPrint = keymap[MODE_SYMBOL][colIndex][rowIndex];
+          other1  = keymap[MODE_NORMAL][colIndex][rowIndex];
+          other2  = keymap[MODE_CURSOR][colIndex][rowIndex];
         } else {
-          toPrint = keyboard[colIndex][rowIndex];
-          other1  = keyboard_symbol[colIndex][rowIndex];
-          other2  = keyboard_cursor[colIndex][rowIndex];
+          toPrint = keymap[MODE_NORMAL][colIndex][rowIndex];
+          other1  = keymap[MODE_SYMBOL][colIndex][rowIndex];
+          other2  = keymap[MODE_CURSOR][colIndex][rowIndex];
         }
   
         // Workaround for left shift key dropping while being pressed
@@ -499,27 +546,27 @@ void printMatrix() {
           KEYBOARD_PRESS(KEY_LEFT_SHIFT);
         }
         if (keyPressed(colIndex, rowIndex)) {
-          if (toPrint!=NULL) {
+          if (!keyEntryEmpty(toPrint)) {
             if (stickyLsh != STICKY_STATUS_OPEN && !keyActive(K_LSH)) { KEYBOARD_PRESS(KEY_LEFT_SHIFT); }
             if (stickyRsh != STICKY_STATUS_OPEN && !keyActive(K_RSH)) { KEYBOARD_PRESS(KEY_RIGHT_SHIFT); }
             if (stickyCtrl!= STICKY_STATUS_OPEN && !keyActive(K_MIC)) { KEYBOARD_PRESS(KEY_LEFT_CTRL); }
             if (stickyAlt != STICKY_STATUS_OPEN && !keyActive(K_ALT)) { KEYBOARD_PRESS(KEY_LEFT_ALT); }
-            KEYBOARD_PRESS(toPrint);
+            pressEntry(toPrint);
           }
         } else {
-          if (toPrint!=NULL) {
-            KEYBOARD_RELEASE(toPrint);
+          if (!keyEntryEmpty(toPrint)) {
+            releaseEntry(toPrint);
           }
-          if (other1!=NULL) {
-            KEYBOARD_RELEASE(other1);
+          if (!keyEntryEmpty(other1)) {
+            releaseEntry(other1);
           }
-          if (other2!=NULL) {
-            KEYBOARD_RELEASE(other2);
+          if (!keyEntryEmpty(other2)) {
+            releaseEntry(other2);
           }
-          if (!keyActive(K_LSH)) { KEYBOARD_RELEASE(KEY_LEFT_SHIFT); }
-          if (!keyActive(K_RSH)) { KEYBOARD_RELEASE(KEY_RIGHT_SHIFT); }
-          if (!keyActive(K_MIC)) { KEYBOARD_RELEASE(KEY_LEFT_CTRL); }
-          if (!keyActive(K_ALT)) { KEYBOARD_RELEASE(KEY_LEFT_ALT); }
+          releaseModBit(1);
+          releaseModBit(5);
+          releaseModBit(0);
+          releaseModBit(2);
         }
       }
     }
@@ -529,6 +576,7 @@ void printMatrix() {
 
 void loop() {
   idleWakeup = false;
+  handleSerial();
   unsigned long startms = millis();
   #if BOARD_TYPE == ESP32
   if (bleKeyboard.isConnected()) {
@@ -592,9 +640,9 @@ void loop() {
         Keyboard.end();
         USBDevice.detach();
         USBCON &= ~(1 << USBE);
-        //USBCON |= (1 << FRZCLK);
+        // USBCON |= (1 << FRZCLK);
         
-        //USBDevice.standby();
+        // USBDevice.standby();
 
         delay(300);
         while (USBDevice.isSuspended()) {}
