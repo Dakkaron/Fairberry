@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="space_xs">4dp</dimen>
+    <dimen name="space_sm">8dp</dimen>
+    <dimen name="space_md">12dp</dimen>
+    <dimen name="space_lg">16dp</dimen>
+    <dimen name="space_xl">20dp</dimen>
+
+    <dimen name="card_padding">14dp</dimen>
+    <dimen name="row_height">40dp</dimen>
+    <dimen name="header_height">22dp</dimen>
+    <dimen name="status_dot">8dp</dimen>
+    <dimen name="cell_gap">3dp</dimen>
+    <dimen name="expander_icon">18dp</dimen>
+
+    <dimen name="radius_card">14dp</dimen>
+    <dimen name="radius_cell">10dp</dimen>
+</resources>

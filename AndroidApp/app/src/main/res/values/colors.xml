@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="app_background">#0F1216</color>
+    <color name="surface">#151A20</color>
+    <color name="surface_raised">#1C2229</color>
+    <color name="surface_pressed">#252C35</color>
+    <color name="outline">#2A323C</color>
+    <color name="outline_strong">#3C4551</color>
+
+    <color name="text_primary">#E7EBF2</color>
+    <color name="text_secondary">#9AA4B1</color>
+
+    <!-- Accent is steel blue. It is mid-tone, so the ink on top of an accent fill has
+         to be dark: near-white text on #4E8FD8 measures 2.8:1, dark ink measures 5.0:1. -->
+    <color name="accent">#4E8FD8</color>
+    <color name="accent_container">#1C3650</color>
+    <color name="on_accent">#0C1C2C</color>
+    <color name="on_accent_container">#C6DBF2</color>
+    <color name="accent_stroke">#3A6A9E</color>
+
+    <color name="state_idle">#9AA4B1</color>
+    <color name="state_connected">#5FCF87</color>
+    <color name="state_pending">#E0A64B</color>
+    <color name="state_danger">#E0675C</color>
+</resources>
