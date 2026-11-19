@@ -5,14 +5,18 @@
  *   I                 -> INFO <firmware> <protocol> <storage>
  *   L                 -> one K line per keymap entry (all modes)
  *   R <mode>          -> K lines for one mode
- *   M <mode> <col> <row> <usage> <mods>  -> set one entry in RAM
+ *   M <mode> <col> <row> <value> <mods>  -> set one entry in RAM
  *   D                 -> reload keymap from EEPROM
  *   F                 -> load factory defaults into RAM
  *   W                 -> write RAM keymap to EEPROM
  *   T                 -> toggle cursor mode
  *   Z                 -> soft reset (restart the sketch)
  *   B                 -> reboot into the USB bootloader (Caterina) for reflashing
- * Responses: OK, ERR, K <mode> <col> <row> <usage> <mods>, INFO ...
+ * Responses: OK, ERR, K <mode> <col> <row> <value> <mods>, INFO ...
+ *
+ * Values follow the Arduino Keyboard library (Keyboard.h): printable characters
+ * are their ASCII code, everything else is a Keyboard.h constant (128..135 are
+ * the modifiers, 136..255 map to HID usage page 0x07 as value - 136).
  *
  * Only available on AVR boards: the protocol lives on the same USB CDC
  * interface as the keyboard HID interface and the Caterina bootloader.
@@ -23,7 +27,7 @@
 #include <avr/wdt.h>
 
 #define FIRMWARE_VERSION "3.1"
-#define KEYMAP_PROTOCOL_VERSION 1
+#define KEYMAP_PROTOCOL_VERSION 2
 
 extern bool cursorMode;
 extern volatile unsigned long idleTimeout;
@@ -39,7 +43,7 @@ void printKeyEntry(int mode, int col, int row) {
   Serial.print(' ');
   Serial.print(row);
   Serial.print(' ');
-  Serial.print(e.usage);
+  Serial.print(e.value);
   Serial.print(' ');
   Serial.println(e.mods);
 }
@@ -86,19 +90,20 @@ void printProtocolERR() {
   Serial.println("ERR");
 }
 
-bool setKeymapEntry(int mode, int col, int row, int usage, int mods) {
+bool setKeymapEntry(int mode, int col, int row, int value, int mods) {
   if (mode < 0 || mode >= MODE_COUNT || col < 0 || col >= colCount ||
-      row < 0 || row >= rowCount || usage < 0 || usage > 255 || mods < 0 || mods > 255) {
+      row < 0 || row >= rowCount || value < 0 || value > 255 || mods < 0 || mods > 255) {
     return false;
   }
 
-  // Modifier usages are stored as modifier bitmask bits instead.
-  if (usage >= 0xE0 && usage <= 0xE7) {
-    mods |= (1 << (usage - 0xE0));
-    usage = 0;
+  // Keyboard.h modifier constants (128..135) are stored as modifier bitmask
+  // bits instead of as values.
+  if (value >= 128 && value <= 135) {
+    mods |= (1 << (value - 128));
+    value = 0;
   }
 
-  keymap[mode][col][row].usage = (uint8_t)usage;
+  keymap[mode][col][row].value = (uint8_t)value;
   keymap[mode][col][row].mods = (uint8_t)mods;
   return true;
 }
@@ -153,9 +158,9 @@ void handleSerial() {
         int mode = readProtocolNumber();
         int col = readProtocolNumber();
         int row = readProtocolNumber();
-        int usage = readProtocolNumber();
+        int value = readProtocolNumber();
         int mods = readProtocolNumber();
-        if (setKeymapEntry(mode, col, row, usage, mods)) {
+        if (setKeymapEntry(mode, col, row, value, mods)) {
           printProtocolOK();
         } else {
           printProtocolERR();

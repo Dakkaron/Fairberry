@@ -497,22 +497,28 @@ void releaseModBit(int bit) {
 }
 
 void pressEntry(const KeyEntry& entry) {
+  bool needsShift;
+  uint8_t usage = keyEntryUsage(entry, needsShift);
+  uint8_t mods = entry.mods | (needsShift ? MOD_LSHIFT : 0);
   for (int bit = 0; bit < 8; bit++) {
-    if (entry.mods & (1 << bit)) {
+    if (mods & (1 << bit)) {
       pressModBit(bit);
     }
   }
-  if (entry.usage != 0) {
-    KEYBOARD_PRESS(entry.usage);
+  if (usage != 0) {
+    KEYBOARD_PRESS(usage);
   }
 }
 
 void releaseEntry(const KeyEntry& entry) {
-  if (entry.usage != 0) {
-    KEYBOARD_RELEASE(entry.usage);
+  bool needsShift;
+  uint8_t usage = keyEntryUsage(entry, needsShift);
+  uint8_t mods = entry.mods | (needsShift ? MOD_LSHIFT : 0);
+  if (usage != 0) {
+    KEYBOARD_RELEASE(usage);
   }
   for (int bit = 0; bit < 8; bit++) {
-    if (entry.mods & (1 << bit)) {
+    if (mods & (1 << bit)) {
       releaseModBit(bit);
     }
   }

@@ -69,8 +69,10 @@
   #else
     #define KEYBOARD_BEGIN(layout) Keyboard.begin()
     #define KEYBOARD_END() Keyboard.end()
-    #define KEYBOARD_PRESS(key) Keyboard.press(key)
-    #define KEYBOARD_RELEASE(key) Keyboard.release(key)
+    // A uint8_t argument is resolved through HID-Project's ASCII table, so raw
+    // usage ids must be passed as KeyboardKeycode or they are looked up twice.
+    #define KEYBOARD_PRESS(key) Keyboard.press((KeyboardKeycode)(key))
+    #define KEYBOARD_RELEASE(key) Keyboard.release((KeyboardKeycode)(key))
   #endif
 #elif BOARD_TYPE == ESP32
   #include "analogWrite.h"

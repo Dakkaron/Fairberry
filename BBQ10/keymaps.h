@@ -1,10 +1,17 @@
 /*
  * Keymap storage for the Fairberry keyboard.
  *
- * Each key is a KeyEntry: a raw HID usage id plus a modifier bitmask.
- * Modifier usages (0xE0..0xE7) are never stored in the usage field; they are
- * normalized into the modifier bitmask (bit 0 = left ctrl .. bit 7 = right gui)
- * so the HID-Project raw-keycode API can apply them directly.
+ * Each key is a KeyEntry: a keymap value plus a modifier bitmask. The value
+ * domain is the one the Arduino Keyboard library uses (Keyboard.h,
+ * github.com/arduino-libraries/Keyboard): a printable character is stored as
+ * its ASCII code, everything else as a Keyboard.h constant, where 128..135 are
+ * the modifiers and 136..255 are HID usage page 0x07 ids as value - 136.
+ * Sending a raw usage id instead of the value makes the layout lookup treat it
+ * as ASCII, so e.g. Backspace (42) prints "*" because 42 is the ASCII code of
+ * '*'. The Android app uses the same domain.
+ *
+ * Modifier values (128..135) are normalized into the modifier bitmask
+ * (bit 0 = left ctrl .. bit 7 = right gui) and never stored as values.
  *
  * Three modes exist per key position: normal, symbol and cursor.
  * The active keymap is kept in RAM and can be updated over the serial
@@ -31,54 +38,140 @@
 #define MOD_RALT 0x40
 #define MOD_RGUI 0x80
 
+// Keyboard.h constants, under a KV_ prefix so they cannot collide with the
+// identically named KeyboardKeycode members of the HID-Project layout enum.
+#define KV_LCTRL 0x80
+#define KV_LSHIFT 0x81
+#define KV_LALT 0x82
+#define KV_LGUI 0x83
+#define KV_RCTRL 0x84
+#define KV_RSHIFT 0x85
+#define KV_RALT 0x86
+#define KV_RGUI 0x87
+
+#define KV_RETURN 0xB0
+#define KV_ESC 0xB1
+#define KV_BACKSPACE 0xB2
+#define KV_TAB 0xB3
+#define KV_PAUSE 0xD0
+#define KV_INSERT 0xD1
+#define KV_HOME 0xD2
+#define KV_PAGE_UP 0xD3
+#define KV_DELETE 0xD4
+#define KV_END 0xD5
+#define KV_PAGE_DOWN 0xD6
+#define KV_RIGHT_ARROW 0xD7
+#define KV_LEFT_ARROW 0xD8
+#define KV_DOWN_ARROW 0xD9
+#define KV_UP_ARROW 0xDA
+#define KV_NUM_LOCK 0xDB
+#define KV_KP_SLASH 0xDC
+#define KV_KP_ASTERISK 0xDD
+#define KV_KP_MINUS 0xDE
+#define KV_KP_PLUS 0xDF
+#define KV_KP_ENTER 0xE0
+#define KV_MENU 0xED
+#define KV_CAPS_LOCK 0xC1
+#define KV_PRINT_SCREEN 0xCE
+#define KV_SCROLL_LOCK 0xCF
+#define KV_F1 0xC2
+#define KV_F2 0xC3
+#define KV_F3 0xC4
+#define KV_F4 0xC5
+#define KV_F5 0xC6
+#define KV_F6 0xC7
+#define KV_F7 0xC8
+#define KV_F8 0xC9
+#define KV_F9 0xCA
+#define KV_F10 0xCB
+#define KV_F11 0xCC
+#define KV_F12 0xCD
+#define KV_F13 0xF0
+#define KV_F14 0xF1
+#define KV_F15 0xF2
+#define KV_F16 0xF3
+#define KV_F17 0xF4
+#define KV_F18 0xF5
+#define KV_F19 0xF6
+#define KV_F20 0xF7
+#define KV_F21 0xF8
+#define KV_F22 0xF9
+#define KV_F23 0xFA
+#define KV_F24 0xFB
+
 struct KeyEntry {
-  uint8_t usage; // raw HID usage id, 0 == none
+  uint8_t value; // ASCII code for text, otherwise a Keyboard.h constant; 0 == none
   uint8_t mods;  // modifier bitmask (MOD_* values)
 };
 
 #define KEYMAP_ENTRIES (MODE_COUNT * colCount * rowCount)
 
-// Raw HID usage ids (HID usage page 0x07). Letters a-z = 0x04..0x1D,
-// digits 1-9 = 0x1E..0x26, 0 = 0x27, arrows = 0x4F..0x52, F1..F12 = 0x3A..0x45.
-#define KEYMAP_F3 0x3C
-#define KEYMAP_F4 0x3D
-#define KEYMAP_F5 0x3E
-#define KEYMAP_F6 0x3F
-#define KEYMAP_F7 0x40
-#define KEYMAP_F8 0x41
-#define KEYMAP_F15 0x6A
+// HID usage page 0x07 for printable ASCII (US layout), bit 7 marks the
+// characters that need shift; identical to KeyboardLayout_en_US, which is what
+// the Keyboard library uses to send an ASCII value.
+static const uint8_t asciiUsageMap[128] PROGMEM = {
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2a, 0x2b, 0x28, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x2c, 0x1e | 0x80, 0x34 | 0x80, 0x20 | 0x80, 0x21 | 0x80, 0x22 | 0x80, 0x24 | 0x80, 0x34,
+  0x26 | 0x80, 0x27 | 0x80, 0x25 | 0x80, 0x2e | 0x80, 0x36, 0x2d, 0x37, 0x38,
+  0x27, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26,
+  0x33 | 0x80, 0x33, 0x36 | 0x80, 0x2e, 0x37 | 0x80, 0x38 | 0x80, 0x1f | 0x80,
+  0x04 | 0x80, 0x05 | 0x80, 0x06 | 0x80, 0x07 | 0x80, 0x08 | 0x80, 0x09 | 0x80, 0x0a | 0x80,
+  0x0b | 0x80, 0x0c | 0x80, 0x0d | 0x80, 0x0e | 0x80, 0x0f | 0x80, 0x10 | 0x80, 0x11 | 0x80,
+  0x12 | 0x80, 0x13 | 0x80, 0x14 | 0x80, 0x15 | 0x80, 0x16 | 0x80, 0x17 | 0x80, 0x18 | 0x80,
+  0x19 | 0x80, 0x1a | 0x80, 0x1b | 0x80, 0x1c | 0x80, 0x1d | 0x80,
+  0x2f, 0x31, 0x30, 0x23 | 0x80, 0x2d | 0x80, 0x35,
+  0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+  0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+  0x2f | 0x80, 0x31 | 0x80, 0x30 | 0x80, 0x35 | 0x80, 0x00
+};
 
-#define KE(ch) KeyEntry{(uint8_t)(0x04 + (ch) - 'a'), 0}
-#define KD(d) KeyEntry{(uint8_t)(0x1E + ((d) == 0 ? 9 : (d) - 1)), 0}
-#define KS(hidUsage) KeyEntry{hidUsage, 0}
-#define KSH(hidUsage) KeyEntry{hidUsage, MOD_LSHIFT}
+// HID usage to send for an entry; *needsShift reports the shift modifier the
+// character itself requires, on top of entry.mods.
+inline uint8_t keyEntryUsage(const KeyEntry& entry, bool& needsShift) {
+  needsShift = false;
+  if (entry.value < 128) {
+    uint8_t mapped = pgm_read_byte(&asciiUsageMap[entry.value]);
+    if (mapped & 0x80) {
+      needsShift = true;
+    }
+    return mapped & 0x7F;
+  }
+  if (entry.value < 136) {
+    return 0; // modifier values live in the mods bitmask
+  }
+  return (uint8_t)(entry.value - 136);
+}
+
+#define KC(ch) KeyEntry{(uint8_t)(ch), 0}
+#define KV(kv) KeyEntry{(uint8_t)(kv), 0}
 #define KM(modbits) KeyEntry{0, modbits}
 #define KNUL KeyEntry{0, 0}
 
 const KeyEntry keymap_defaults[MODE_COUNT][colCount][rowCount] PROGMEM = {
   // normal mode
   {
-    KE('q'), KE('w'), KNUL, KE('a'), KM(MOD_LALT), KS(0x2C), KM(MOD_LCTRL),   // sym, ALT, mic
-    KE('e'), KE('s'), KE('d'), KE('p'), KE('x'), KE('z'), KM(MOD_LSHIFT),     // left shift
-    KE('r'), KE('g'), KE('t'), KM(MOD_RSHIFT), KE('v'), KE('c'), KE('f'),     // right shift
-    KE('u'), KE('h'), KE('y'), KS(0x28), KE('b'), KE('n'), KE('j'),           // Enter
-    KE('o'), KE('l'), KE('i'), KS(0x2A), KSH(0x21), KE('m'), KE('k')          // Backspace, $
+    KC('q'), KC('w'), KNUL, KC('a'), KM(MOD_LALT), KC(' '), KM(MOD_LCTRL),            // sym, ALT, mic
+    KC('e'), KC('s'), KC('d'), KC('p'), KC('x'), KC('z'), KM(MOD_LSHIFT),             // left shift
+    KC('r'), KC('g'), KC('t'), KM(MOD_RSHIFT), KC('v'), KC('c'), KC('f'),             // right shift
+    KC('u'), KC('h'), KC('y'), KV(KV_RETURN), KC('b'), KC('n'), KC('j'),              // Enter
+    KC('o'), KC('l'), KC('i'), KV(KV_BACKSPACE), KC('$'), KC('m'), KC('k')            // Backspace
   },
   // symbol mode
   {
-    KSH(0x20), KD(1), KNUL, KSH(0x25), KS(0x2B), KS(0x2C), KD(0),             // #, *, TAB, 0
-    KD(2), KD(4), KD(5), KSH(0x1F), KD(8), KD(7), KM(MOD_LSHIFT),             // @
-    KD(3), KS(0x38), KSH(0x26), KM(MOD_RSHIFT), KSH(0x38), KD(9), KD(6),      // / ( ?
-    KSH(0x2D), KSH(0x33), KSH(0x27), KNUL, KSH(0x1E), KS(0x36), KS(0x33),     // _ : ) ! , ;
-    KSH(0x2E), KSH(0x34), KS(0x2D), KS(0x2A), KNUL, KS(0x37), KS(0x34)        // + " - . '
+    KC('#'), KC('1'), KNUL, KC('*'), KV(KV_TAB), KC(' '), KC('0'),                   // sym, ALT, SPACE
+    KC('2'), KC('4'), KC('5'), KC('@'), KC('8'), KC('7'), KM(MOD_LSHIFT),
+    KC('3'), KC('/'), KC('('), KM(MOD_RSHIFT), KC('?'), KC('9'), KC('6'),
+    KC('_'), KC(':'), KC(')'), KNUL, KC('!'), KC(','), KC(';'),
+    KC('+'), KC('"'), KC('-'), KV(KV_BACKSPACE), KNUL, KC('.'), KC('\'')
   },
   // cursor mode
   {
-    KS(0x29), KS(0x52), KNUL, KS(0x50), KS(0x2B), KS(0x2C), KD(0),            // ESC, up, left, TAB, 0
-    KD(2), KS(0x51), KS(0x4F), KS(KEYMAP_F15), KD(8), KD(7), KM(MOD_LSHIFT),  // down, right, F15
-    KD(3), KS(0x38), KSH(0x26), KM(MOD_RSHIFT), KSH(0x38), KD(9), KD(6),      // / ( ?
-    KS(KEYMAP_F7), KSH(0x33), KSH(0x27), KS(KEYMAP_F4), KSH(0x1E), KS(0x36), KS(0x33),
-    KS(KEYMAP_F6), KSH(0x34), KS(KEYMAP_F8), KS(KEYMAP_F3), KS(KEYMAP_F5), KS(0x37), KS(0x34)
+    KV(KV_ESC), KV(KV_UP_ARROW), KNUL, KV(KV_LEFT_ARROW), KV(KV_TAB), KC(' '), KC('0'),
+    KC('2'), KV(KV_DOWN_ARROW), KV(KV_RIGHT_ARROW), KV(KV_F15), KC('8'), KC('7'), KM(MOD_LSHIFT),
+    KC('3'), KC('/'), KC('('), KM(MOD_RSHIFT), KC('?'), KC('9'), KC('6'),
+    KV(KV_F7), KC(':'), KC(')'), KV(KV_F4), KC('!'), KC(','), KC(';'),
+    KV(KV_F6), KC('"'), KV(KV_F8), KV(KV_F3), KV(KV_F5), KC('.'), KC('\'')
   }
 };
 
@@ -86,7 +179,7 @@ const KeyEntry keymap_defaults[MODE_COUNT][colCount][rowCount] PROGMEM = {
 KeyEntry keymap[MODE_COUNT][colCount][rowCount];
 
 inline bool keyEntryEmpty(const KeyEntry& e) {
-  return e.usage == 0 && e.mods == 0;
+  return e.value == 0 && e.mods == 0;
 }
 
 void loadFactoryDefaults() {
@@ -98,7 +191,9 @@ void loadFactoryDefaults() {
 
 #define KEYMAP_MAGIC1 'F'
 #define KEYMAP_MAGIC2 'K'
-#define KEYMAP_STORAGE_VERSION 1
+// Storage version 2 switched the entry values from raw HID usages to the
+// Keyboard.h value domain, so older stored keymaps are not accepted.
+#define KEYMAP_STORAGE_VERSION 2
 #define KEYMAP_EEPROM_ADDR 0
 // layout: 'F' 'K' version reserved | 2 bytes per entry | CRC16 big-endian
 #define KEYMAP_EEPROM_SIZE (4 + KEYMAP_ENTRIES * 2 + 2)
@@ -130,7 +225,7 @@ bool loadKeymapFromEEPROM() {
 
   KeyEntry loaded[KEYMAP_ENTRIES];
   for (int i = 0; i < KEYMAP_ENTRIES; i++) {
-    loaded[i].usage = EEPROM.read(KEYMAP_EEPROM_ADDR + 4 + i * 2);
+    loaded[i].value = EEPROM.read(KEYMAP_EEPROM_ADDR + 4 + i * 2);
     loaded[i].mods = EEPROM.read(KEYMAP_EEPROM_ADDR + 4 + i * 2 + 1);
   }
 
@@ -154,7 +249,7 @@ void writeKeymapToEEPROM() {
   EEPROM.update(KEYMAP_EEPROM_ADDR + 3, 0);
 
   for (int i = 0; i < KEYMAP_ENTRIES; i++) {
-    EEPROM.update(KEYMAP_EEPROM_ADDR + 4 + i * 2, current[i].usage);
+    EEPROM.update(KEYMAP_EEPROM_ADDR + 4 + i * 2, current[i].value);
     EEPROM.update(KEYMAP_EEPROM_ADDR + 4 + i * 2 + 1, current[i].mods);
   }
 
