@@ -9,7 +9,7 @@
  *   D                 -> reload keymap from EEPROM
  *   F                 -> load factory defaults into RAM
  *   W                 -> write RAM keymap to EEPROM
- *   T                 -> toggle cursor mode
+ *   P                 -> keepalive: refresh the idle timeout, no response
  *   Z                 -> soft reset (restart the sketch)
  *   B                 -> reboot into the USB bootloader (Caterina) for reflashing
  * Responses: OK, ERR, K <mode> <col> <row> <value> <mods>, INFO ...
@@ -27,9 +27,8 @@
 #include <avr/wdt.h>
 
 #define FIRMWARE_VERSION "3.1"
-#define KEYMAP_PROTOCOL_VERSION 2
+#define KEYMAP_PROTOCOL_VERSION 3
 
-extern bool cursorMode;
 extern volatile unsigned long idleTimeout;
 extern void(* resetFunc)(void);
 
@@ -182,9 +181,9 @@ void handleSerial() {
         writeKeymapToEEPROM();
         printProtocolOK();
         break;
-      case 'T':
-        cursorMode = !cursorMode;
-        printProtocolOK();
+      case 'P':
+        // No response: the host sends this to keep the board awake while its app
+        // is in the foreground, so a reply would be noise on the CDC link.
         break;
       case 'Z':
         printProtocolOK();
