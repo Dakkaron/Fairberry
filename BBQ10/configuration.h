@@ -4,7 +4,7 @@
  * FAIRBERRY_V0_3_0 : This is the custom mainboard, version 0.3.0
  * FAIRBERRY_V0_2_0 : This is the custom mainboard, version 0.2.0
  * FAIRBERRY_V0_1_1 : This is the custom mainboard, version 0.1.1
- * ARDUINO : The original option, using an Arduino Pro Micro
+ * BOARD_ARDUINO : The original option, using an Arduino Pro Micro
  * BEETLE : A slightly different version of the original option, using a smaller Beetle board based on the ATMega32u4. Not recommeded, because the beetle has one to few pins, so you have to solder directly to the ATMega32u4.
  * ESP32: Using an ESP32-based board to couple the board using Bluetooth. Not recommended, because the power options don't really work right now, and it consumes a lot of power.
  */
@@ -26,18 +26,18 @@
  * power save mode is applied (if any).
  * 
  * ### POWERSAVE_ARDUINO_IDLE
- * This is the recommended powersaving mode for BOARD_TYPE ARDUINO. It's a light sleep that keeps
+ * This is the recommended powersaving mode for BOARD_TYPE BOARD_ARDUINO. It's a light sleep that keeps
  * the USB connection active. It saves around 40mA. It introduces a delay
  * of up to 120ms when the device is woken up.
  * 
  * ### POWERSAVE_ARDUINO_POWERDOWN
- * This is the more aggressive powersaving method for BOARD_TYPE ARDUINO. It completely turns off
+ * This is the more aggressive powersaving method for BOARD_TYPE BOARD_ARDUINO. It completely turns off
  * the microcontroller, saving around 55mA. This takes the power consumption
  * down to almost nothing, but USB needs to reconnect after the keyboard
  * is woken up. This takes about 1-2 seconds.
  * 
  * ### POWERSAVE_ESP32_LOGHT_SLEEP
- * This is the recommended powersaving mode for BOARD_TYPE ARDUINO. It's a light sleep that keeps
+ * This is the recommended powersaving mode for BOARD_TYPE BOARD_ARDUINO. It's a light sleep that keeps
  * the Bluetooth connection active. It reduces the power consumption from around 160mA to about 20mA when not active.
  * It introduces a delay of up to 50ms when the device is woken up.
  * 
@@ -47,13 +47,13 @@
  */
 #define IDLE_TIMEOUT 30L * 1000L
 #define POWERSAVE_ARDUINO_IDLE
-//#define POWERSAVE_ARDUINO_IDLE_DURING_ACTIVE
-//#define POWERSAVE_ARDUINO_CLOCKDOWN
-//#define POWERSAVE_ARDUINO_POWERDOWN
-//#define POWERSAVE_ESP32_LIGHT_SLEEP
-//#define POWERSAVE_ESP32_DEEP_SLEEP
+// #define POWERSAVE_ARDUINO_IDLE_DURING_ACTIVE
+// #define POWERSAVE_ARDUINO_CLOCKDOWN
+// #define POWERSAVE_ARDUINO_POWERDOWN
+// #define POWERSAVE_ESP32_LIGHT_SLEEP
+// #define POWERSAVE_ESP32_DEEP_SLEEP
 
-//#define ARDUINO_CLOCKDOWN_DIVISION 8
+// #define ARDUINO_CLOCKDOWN_DIVISION 8
 
 
 /*
@@ -64,9 +64,28 @@
  * If you are using a fairberry mainboard, you can use LED0_IN_CURSOR_MDOE
  * instead of BLINK_IN_CURSOR_MODE, to have the LED0 glow when in cursor mode (doesn't blink).
  */
-#define BLINK_IN_CURSOR_MODE
+// #define BLINK_IN_CURSOR_MODE
 #define BLINK_TIMEOUT 20L
-//#define LED0_IN_CURSOR_MODE
+// #define LED0_IN_CURSOR_MODE
+
+/*
+ * ## LED state display
+ * 
+ * The two LED halves show the state the keyboard is in as an envelope over the
+ * configured brightness, so a pattern never overwrites the brightness settings:
+ * plain state keeps both halves as set, cursor mode pulses both halves together,
+ * sym lock pulses them alternately, caps lock (the double tap shift lock) pulses
+ * the left half while the right half stays on, ctrl lock pulses the right half,
+ * alt lock pulses both halves alternately with a short period.
+ * 
+ * Patterns only run while the keyboard is awake, so idle power saving is not
+ * affected by them. Change the periods to change how fast a pulse breathes;
+ * LED_DISPLAY_INTERVAL_MS is how often the envelope is written to the pins.
+ */
+#define STATUS_LED_PATTERNS
+#define LED_PULSE_PERIOD_MS 1000L
+#define LED_FAST_PULSE_PERIOD_MS 400L
+#define LED_DISPLAY_INTERVAL_MS 20L
 
 /*
  * 
@@ -79,8 +98,8 @@
 #define DOUBLETAP_LOCK_SYM
 #define DOUBLETAP_LOCK_LSH
 #define DOUBLETAP_LOCK_RSH
-//#define DOUBLETAP_LOCK_CTRL
-//#define DOUBLETAP_LOCK_ALT
+// #define DOUBLETAP_LOCK_CTRL
+// #define DOUBLETAP_LOCK_ALT
 
 #define DEBOUNCE_MS 50
 
@@ -88,7 +107,7 @@
  * If you define DEBUG_SERIAL_INSTEAD_OF_USB, the device will not function as a keyboard, but instead
  * output key presses to serial. Used for debugging.
  */
-//#define DEBUG_SERIAL_INSTEAD_OF_USB
+// #define DEBUG_SERIAL_INSTEAD_OF_USB
 
 /*
  * Default brightness of the keys when active. Possible values: 0-255
@@ -98,4 +117,11 @@
 /*
  * Enables serial debug logging. Only activate when debugging.
  */
-//#define SERIAL_DEBUG_LOG
+// #define SERIAL_DEBUG_LOG
+
+/*
+ * Logs each combination decision as a protocol line, plus every key state change that debounce
+ * filters out. Only activate when debugging, and only on AVR boards, where Serial is the CDC the
+ * app reads.
+ */
+// #define DEBUG_COMBO_DECISIONS

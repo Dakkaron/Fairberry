@@ -1,3 +1,6 @@
+#ifndef FAIRBERRY_CONSTANTS_H
+#define FAIRBERRY_CONSTANTS_H
+
 #define K_SYM_COL 0
 #define K_SYM_ROW 2
 #define K_SYM K_SYM_COL, K_SYM_ROW
@@ -21,3 +24,5 @@
 #define K_ALT_COL 0
 #define K_ALT_ROW 4
 #define K_ALT K_ALT_COL, K_ALT_ROW
+
+#endif

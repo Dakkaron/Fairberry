@@ -10,3 +10,9 @@ KiCad/FairberryMainboard/FairberryMainboard-backups/
 *.gto
 *.gbr
 *.gbrjob
+
+# Arduino build output
+BBQ10/build/
+
+# Local build helpers, not part of the firmware
+tools/

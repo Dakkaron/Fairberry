@@ -5,7 +5,7 @@
 #define FAIRBERRY_V0_3_0 3
 #define FAIRBERRY_V0_2_0 2
 #define FAIRBERRY_V0_1_1 1
-#define ARDUINO 10
+#define BOARD_ARDUINO 10
 #define BEETLE 1101
 #define ESP32 1102
 
@@ -17,6 +17,9 @@
 #include "constants.h"
 #include "keymaps.h"
 #include "boards.h"
+#include "combos.h"
+#include "protocol.h"
+#include "statusleds.h"
 
 
 bool keys[colCount][rowCount];
@@ -51,9 +54,32 @@ byte stickyAlt = STICKY_STATUS_OPEN;
 bool keyboardInit = false;
 bool cursorMode = false;
 
+/*
+ * Decision lines go out on the CDC the app reads; with the flag off the calls compile away.
+ */
+#ifdef DEBUG_COMBO_DECISIONS
+bool debugSawChange[colCount][rowCount];
+static inline void debugCombo(const char *event, int col, int row);
+static inline void debugEdge(const char *event, int col, int row, bool raw, bool sawChange);
+#else
+static inline void debugCombo(const char *, int, int) {}
+static inline void debugEdge(const char *, int, int, bool, bool) {}
+#endif
+
 void(* resetFunc) (void) = 0;
 
 void setup() {
+    loadFactoryDefaults();
+    loadKeymapFromEEPROM();
+    if (!loadCombosFromEEPROM()) {
+        loadComboDefaults();
+    }
+    resetActiveCombos();
+
+    #if CHIP_TYPE == CHIP_ATMEGA32U4
+      Serial.begin(9600); // ignored by the USB CDC layer, sets the UART baud in debug mode
+    #endif
+
     #ifdef LED0_PIN
       pinMode(LED0_PIN, OUTPUT);
     #endif
@@ -110,22 +136,31 @@ void setup() {
 }
 
 void updateStickyKeyStates() {
-  if (keyPressed(K_SYM) && !keyActive(K_MIC)) { // SYM(0,2) (inactive while CTRL(0,6) is held, because of brightness down)
-    byte tmp = stickySym;
-    resetStickyKeys();
-    stickySym = tmp + 1;
+  // Sym and RightShift are also combo keycaps; when a combo consumes the press,
+  // the keycap must not also act as its sticky mode key.
+  if (keyPressed(K_SYM)) { // SYM(0,2)
+    debugCombo("symPress", K_SYM);
+    if (comboFiring(K_SYM) < 0) {
+      byte tmp = stickySym;
+      resetStickyKeys();
+      stickySym = tmp + 1;
+    }
   }
   if (keyPressed(K_LSH)) { // LSH(1,6)
     byte tmp = stickyLsh;
     resetStickyKeys();
     stickyLsh = tmp + 1;
   }
-  if (keyPressed(K_RSH) && !keyActive(K_MIC)) { // RSH(2,3) (inactive while CTRL(0,6) is held, because of brightness down)
-    byte tmp = stickyRsh;
-    resetStickyKeys();
-    stickyRsh = tmp + 1;
+  if (keyPressed(K_RSH)) { // RSH(2,3)
+    debugCombo("rshPress", K_RSH);
+    if (comboFiring(K_RSH) < 0) {
+      byte tmp = stickyRsh;
+      resetStickyKeys();
+      stickyRsh = tmp + 1;
+    }
   }
   if (stickySym==STICKY_STATUS_OPEN && keyPressed(K_MIC)) { // CTRL(0,6)
+    debugCombo("ctrlPress", K_MIC);
     byte tmp = stickyCtrl;
     resetStickyKeys();
     stickyCtrl = tmp + 1;
@@ -333,6 +368,22 @@ boolean readMatrix(byte debouceMsSinceLast) {
           debounceMs[colIndex][rowIndex] = 0;
         }
         changedValue[colIndex][rowIndex] = false;
+#ifdef DEBUG_COMBO_DECISIONS
+        /*
+         * The input is only read when a window is closed, so a press that happens inside
+         * one is invisible to the rest of the code: the probe below is the only way to see
+         * a press the window swallows. A press is lost when the window closes with the
+         * input back at the state the cell had recorded.
+         */
+        bool raw = (anyKeyPressed) && (digitalRead(curRow) == LOW);
+        if (raw != lastValue[colIndex][rowIndex]) {
+          debugSawChange[colIndex][rowIndex] = true;
+        }
+        if (debounceMs[colIndex][rowIndex] == 0 && debugSawChange[colIndex][rowIndex]) {
+          debugEdge("windowClosed", colIndex, rowIndex, raw, true);
+          debugSawChange[colIndex][rowIndex] = false;
+        }
+#endif
       } else { // If debouncing is not active, process the key press
         bool buttonPressed = (anyKeyPressed) && (digitalRead(curRow) == LOW);
         
@@ -342,6 +393,7 @@ boolean readMatrix(byte debouceMsSinceLast) {
           debounceMs[colIndex][rowIndex] = DEBOUNCE_MS;
           anyKeyReleased = anyKeyReleased | buttonPressed;
           anyKeyChanged = true;
+          debugEdge("edge", colIndex, rowIndex, buttonPressed, false);
         } else {
           changedValue[colIndex][rowIndex] = false;
         }
@@ -413,10 +465,6 @@ bool keyActive(int colIndex, int rowIndex) {
   return keys[colIndex][rowIndex] == true;
 }
 
-bool isPrintableKey(int colIndex, int rowIndex) {
-  return keyboard_symbol[colIndex][rowIndex] != NULL || keyboard[colIndex][rowIndex] != NULL;
-}
-
 void changeKeyboardBacklight(int change1, int change2, bool on) {
   setKeyboardBacklight(keyboardLight1 + change1, keyboardLight2 + change2, on);
 }
@@ -453,6 +501,36 @@ void setKeyboardBacklight(int pwmValue1, int pwmValue2, bool on) {
   }
 }
 
+#ifdef STATUS_LED_PATTERNS
+unsigned long ledDisplayPhaseStart = 0;
+unsigned long ledDisplayNextUpdate = 0;
+int ledDisplayState = LED_STATE_PLAIN;
+
+void updateStatusLedDisplay(unsigned long now) {
+  if (now < ledDisplayNextUpdate) return;
+  ledDisplayNextUpdate = now + LED_DISPLAY_INTERVAL_MS;
+
+  int state = activeLedState(cursorMode,
+      stickySym == STICKY_STATUS_LOCKED,
+      stickyLsh == STICKY_STATUS_LOCKED || stickyRsh == STICKY_STATUS_LOCKED,
+      stickyCtrl == STICKY_STATUS_LOCKED,
+      stickyAlt == STICKY_STATUS_LOCKED);
+  if (state != ledDisplayState) {
+    ledDisplayState = state;
+    ledDisplayPhaseStart = now;
+  }
+
+  unsigned long phaseMs = now - ledDisplayPhaseStart;
+
+  #ifdef KEYBOARD_LIGHT_PIN_1
+    analogWrite(KEYBOARD_LIGHT_PIN_1, (keyboardLight1 * ledHalfEnvelope(ledRuleFor(ledDisplayState, LED_HALF_LEFT), phaseMs)) / 255);
+  #endif
+  #ifdef KEYBOARD_LIGHT_PIN_2
+    analogWrite(KEYBOARD_LIGHT_PIN_2, (keyboardLight2 * ledHalfEnvelope(ledRuleFor(ledDisplayState, LED_HALF_RIGHT), phaseMs)) / 255);
+  #endif
+}
+#endif
+
 void unstickKeys() {
   if (anyKeyReleased) {
     stickySym = (stickySym==STICKY_STATUS_STICKY) ? keyPressed(K_SYM) : stickySym;
@@ -471,55 +549,328 @@ void resetStickyKeys() {
   stickyAlt = STICKY_STATUS_OPEN;
 }
 
+void pressModBit(int bit) {
+  KEYBOARD_PRESS((uint8_t)(0xE0 + bit));
+}
+
+// Releases a modifier bit, but keeps it held while the physical key that
+// maps to that modifier is still pressed.
+void releaseModBit(int bit) {
+  switch (bit) {
+    case 0: if (keyActive(K_MIC)) return; break;
+    case 1: if (keyActive(K_LSH)) return; break;
+    case 2: if (keyActive(K_ALT)) return; break;
+    case 5: if (keyActive(K_RSH)) return; break;
+  }
+  KEYBOARD_RELEASE((uint8_t)(0xE0 + bit));
+}
+
+int8_t activeCombo[COMBO_KEYS];
+// The modifier bits a combo added to the report for that key, so releasing the
+// chord cannot take away a modifier another key is still using.
+uint8_t activeComboBits[COMBO_KEYS];
+
+void resetActiveCombos() {
+  for (int i = 0; i < COMBO_KEYS; i++) {
+    activeCombo[i] = -1;
+    activeComboBits[i] = 0;
+  }
+}
+
+// The mode in effect for the press being evaluated. A Sym press cannot have selected
+// symbol mode for keycaps that were already held: those keycaps are in the report as the
+// mode that was in effect when they were pressed, and a Sym press taken over by a combo
+// stops acting as the symbol modifier for the keys pressed after it.
+int activeModeIndex(int col, int row) {
+  if (cursorMode) return MODE_CURSOR;
+  if (stickySym != STICKY_STATUS_OPEN) return MODE_SYMBOL;
+  if (!keyActive(K_SYM)) return MODE_NORMAL;
+  if (col == K_SYM_COL && row == K_SYM_ROW) return MODE_NORMAL;
+  return activeCombo[keyIndex(K_SYM_COL, K_SYM_ROW)] >= 0 ? MODE_NORMAL : MODE_SYMBOL;
+}
+
+// The modifier bits the keyboard is currently sending, plus the sticky modifiers. The key
+// being tested is not part of the set: a combo only fires for a key added while its modifier
+// is already held.
+uint8_t heldModBits(int pressedCol, int pressedRow) {
+  int mode = activeModeIndex(pressedCol, pressedRow);
+  uint8_t bits = 0;
+  for (int col = 0; col < colCount; col++) {
+    for (int row = 0; row < rowCount; row++) {
+      if (col == pressedCol && row == pressedRow) {
+        continue;
+      }
+      if (keyActive(col, row)) {
+        bits |= keymap[mode][col][row].mods;
+      }
+    }
+  }
+  if (stickyCtrl != STICKY_STATUS_OPEN) bits |= MOD_LCTRL;
+  if (stickyLsh != STICKY_STATUS_OPEN) bits |= MOD_LSHIFT;
+  if (stickyRsh != STICKY_STATUS_OPEN) bits |= MOD_RSHIFT;
+  if (stickyAlt != STICKY_STATUS_OPEN) bits |= MOD_LALT;
+  return bits;
+}
+
+int comboFiring(int col, int row) {
+  uint8_t held = heldModBits(col, row);
+  for (int bit = 0; bit < 8; bit++) {
+    if (held & (1 << bit)) {
+      int slot = findCombo(1 << bit, keyIndex(col, row));
+      if (slot >= 0) {
+        return slot;
+      }
+    }
+  }
+  return -1;
+}
+
+#ifdef DEBUG_COMBO_DECISIONS
+static inline void debugCombo(const char *event, int col, int row) {
+  int mode = activeModeIndex(col, row);
+  Serial.print("D ");
+  Serial.print(event);
+  Serial.print(' ');
+  Serial.print(col);
+  Serial.print(',');
+  Serial.print(row);
+  Serial.print(" mode=");
+  Serial.print(mode);
+  Serial.print(" held=");
+  Serial.print(heldModBits(col, row), HEX);
+  Serial.print(" slot=");
+  Serial.print(comboFiring(col, row));
+  Serial.print(" entry=");
+  Serial.print(keymap[mode][col][row].value, HEX);
+  Serial.print(" mods=");
+  Serial.print(keymap[mode][col][row].mods, HEX);
+  Serial.print(" down=");
+  Serial.print(keyActive(col, row) ? 1 : 0);
+  Serial.print(" activeSlot=");
+  Serial.print(static_cast<int>(activeCombo[keyIndex(col, row)]));
+  Serial.print(" sticky=");
+  Serial.print(stickySym);
+  Serial.print(',');
+  Serial.print(stickyCtrl);
+  Serial.print(',');
+  Serial.print(stickyRsh);
+  Serial.print(" cursor=");
+  Serial.print(cursorMode ? 1 : 0);
+  Serial.println();
+}
+
+static inline void debugEdge(const char *event, int col, int row, bool raw, bool sawChange) {
+  Serial.print("E ");
+  Serial.print(event);
+  Serial.print(' ');
+  Serial.print(col);
+  Serial.print(',');
+  Serial.print(row);
+  Serial.print(" raw=");
+  Serial.print(raw ? 1 : 0);
+  Serial.print(" last=");
+  Serial.print(lastValue[col][row] ? 1 : 0);
+  Serial.print(" window=");
+  Serial.print(debounceMs[col][row]);
+  Serial.print(" saw=");
+  Serial.print(sawChange ? 1 : 0);
+  Serial.println();
+}
+#endif
+
+void performDeviceAction(uint8_t value) {
+  if (value == KV_ACTION_BACKLIGHT_DOWN) {
+    changeKeyboardBacklight(-keyboardLightSteps, -keyboardLightSteps, true);
+  } else if (value == KV_ACTION_BACKLIGHT_UP) {
+    changeKeyboardBacklight(keyboardLightSteps, keyboardLightSteps, true);
+  }
+}
+
+// The chord's modifier bits are handled once for the whole chord, so a shared bit is not
+// released early by one output.
+void sendOutputPress(int slot, int output) {
+  uint8_t value = combos[slot].outputs[output].value;
+  if (isDeviceAction(value)) {
+    performDeviceAction(value);
+    return;
+  }
+
+  bool needsShift;
+  uint8_t usage = keyEntryUsage(combos[slot].outputs[output], needsShift);
+  if (isConsumerValue(value)) {
+    uint16_t consumer = consumerUsage(value);
+    if (consumer != 0) {
+      KEYBOARD_PRESS_CONSUMER(consumer);
+    }
+  } else if (usage != 0) {
+    KEYBOARD_PRESS(usage);
+  }
+}
+
+void sendOutputRelease(int slot, int output) {
+  uint8_t value = combos[slot].outputs[output].value;
+  if (isDeviceAction(value)) {
+    return; // device actions have no release half
+  }
+
+  bool needsShift;
+  uint8_t usage = keyEntryUsage(combos[slot].outputs[output], needsShift);
+  if (isConsumerValue(value)) {
+    uint16_t consumer = consumerUsage(value);
+    if (consumer != 0) {
+      KEYBOARD_RELEASE_CONSUMER(consumer);
+    }
+  } else if (usage != 0) {
+    KEYBOARD_RELEASE(usage);
+  }
+}
+
+void pressComboChord(int slot, int pos, uint8_t heldBefore) {
+  // A modifier bit held before the combo fired belongs to another key, except the
+  // combo's own modifier, which the combo has just dropped from the report.
+  uint8_t added = comboOutputModBits(slot) & (~heldBefore | combos[slot].mod);
+  for (int bit = 0; bit < 8; bit++) {
+    if (added & (1 << bit)) {
+      pressModBit(bit);
+    }
+  }
+  activeComboBits[pos] = added;
+  for (int out = 0; out < COMBO_OUTPUTS; out++) {
+    sendOutputPress(slot, out);
+  }
+}
+
+// Reverse order: a key is never released while an earlier output still needs the
+// modifier that produced it.
+void releaseComboChord(int slot, int pos) {
+  for (int out = COMBO_OUTPUTS - 1; out >= 0; out--) {
+    sendOutputRelease(slot, out);
+  }
+
+  uint8_t added = activeComboBits[pos];
+  for (int bit = 0; bit < 8; bit++) {
+    if (added & (1 << bit)) {
+      releaseModBit(bit);
+    }
+  }
+  activeComboBits[pos] = 0;
+}
+
+void pressEntry(const KeyEntry& entry) {
+  bool needsShift;
+  uint8_t usage = keyEntryUsage(entry, needsShift);
+  uint8_t mods = entry.mods | (needsShift ? MOD_LSHIFT : 0);
+  for (int bit = 0; bit < 8; bit++) {
+    if (mods & (1 << bit)) {
+      pressModBit(bit);
+    }
+  }
+  if (isConsumerValue(entry.value)) {
+    uint16_t consumer = consumerUsage(entry.value);
+    if (consumer != 0) {
+      KEYBOARD_PRESS_CONSUMER(consumer);
+    }
+  } else if (isDeviceAction(entry.value)) {
+    performDeviceAction(entry.value);
+  } else if (usage != 0) {
+    KEYBOARD_PRESS(usage);
+  }
+}
+
+void releaseEntry(const KeyEntry& entry) {
+  bool needsShift;
+  uint8_t usage = keyEntryUsage(entry, needsShift);
+  uint8_t mods = entry.mods | (needsShift ? MOD_LSHIFT : 0);
+  if (isConsumerValue(entry.value)) {
+    uint16_t consumer = consumerUsage(entry.value);
+    if (consumer != 0) {
+      KEYBOARD_RELEASE_CONSUMER(consumer);
+    }
+  } else if (usage != 0) {
+    KEYBOARD_RELEASE(usage);
+  }
+  for (int bit = 0; bit < 8; bit++) {
+    if (mods & (1 << bit)) {
+      releaseModBit(bit);
+    }
+  }
+}
+
 void printMatrix() {
   for (int rowIndex=0; rowIndex < rowCount; rowIndex++) {
     for (int colIndex=0; colIndex < colCount; colIndex++) {
+      int pos = keyIndex(colIndex, rowIndex);
+
+      if (keyChanged(colIndex, rowIndex)) {
+        debugCombo("decision", colIndex, rowIndex);
+      }
+
+      if (keyPressed(colIndex, rowIndex)) {
+        int slot = comboFiring(colIndex, rowIndex);
+        if (slot >= 0) {
+          int held = heldModBits(colIndex, rowIndex);
+          activeCombo[pos] = slot;
+          KEYBOARD_RELEASE((uint8_t)(0xE0 + comboModifierBit(combos[slot].mod)));
+          pressComboChord(slot, pos, held);
+          continue;
+        }
+      } else if (keyReleased(colIndex, rowIndex) && activeCombo[pos] >= 0) {
+        int slot = activeCombo[pos];
+        releaseComboChord(slot, pos);
+        activeCombo[pos] = -1;
+        int bit = comboModifierBit(combos[slot].mod);
+        if (heldModBits(colIndex, rowIndex) & (1 << bit)) {
+          pressModBit(bit);
+        }
+        continue;
+      }
+
       // we only want to print if the key is pressed and it is a printable character
-      if (keyChanged(colIndex, rowIndex) && isPrintableKey(colIndex, rowIndex)) {
-        char toPrint;
-        char other1;
-        char other2;
+      if (keyChanged(colIndex, rowIndex)) {
+        KeyEntry toPrint;
+        KeyEntry other1;
+        KeyEntry other2;
         if (cursorMode) {
-          toPrint = keyboard_cursor[colIndex][rowIndex];
-          other1  = keyboard[colIndex][rowIndex];
-          other2  = keyboard_symbol[colIndex][rowIndex];
-        } else if (stickySym != STICKY_STATUS_OPEN || keyActive(K_SYM)) {
-          toPrint = keyboard_symbol[colIndex][rowIndex];
-          other1  = keyboard[colIndex][rowIndex];
-          other2  = keyboard_cursor[colIndex][rowIndex];
+          toPrint = keymap[MODE_CURSOR][colIndex][rowIndex];
+          other1  = keymap[MODE_NORMAL][colIndex][rowIndex];
+          other2  = keymap[MODE_SYMBOL][colIndex][rowIndex];
+        } else if (activeModeIndex(colIndex, rowIndex) == MODE_SYMBOL) {
+          toPrint = keymap[MODE_SYMBOL][colIndex][rowIndex];
+          other1  = keymap[MODE_NORMAL][colIndex][rowIndex];
+          other2  = keymap[MODE_CURSOR][colIndex][rowIndex];
         } else {
-          toPrint = keyboard[colIndex][rowIndex];
-          other1  = keyboard_symbol[colIndex][rowIndex];
-          other2  = keyboard_cursor[colIndex][rowIndex];
+          toPrint = keymap[MODE_NORMAL][colIndex][rowIndex];
+          other1  = keymap[MODE_SYMBOL][colIndex][rowIndex];
+          other2  = keymap[MODE_CURSOR][colIndex][rowIndex];
         }
   
         // Workaround for left shift key dropping while being pressed
-        if (keyActive(K_LSH) && rowIndex!=1 && colIndex!=6) {
+        if (keyActive(K_LSH) && colIndex != K_LSH_COL && rowIndex != K_LSH_ROW) {
           KEYBOARD_RELEASE(KEY_LEFT_SHIFT);
           KEYBOARD_PRESS(KEY_LEFT_SHIFT);
         }
         if (keyPressed(colIndex, rowIndex)) {
-          if (toPrint!=NULL) {
+          if (!keyEntryEmpty(toPrint)) {
             if (stickyLsh != STICKY_STATUS_OPEN && !keyActive(K_LSH)) { KEYBOARD_PRESS(KEY_LEFT_SHIFT); }
             if (stickyRsh != STICKY_STATUS_OPEN && !keyActive(K_RSH)) { KEYBOARD_PRESS(KEY_RIGHT_SHIFT); }
             if (stickyCtrl!= STICKY_STATUS_OPEN && !keyActive(K_MIC)) { KEYBOARD_PRESS(KEY_LEFT_CTRL); }
             if (stickyAlt != STICKY_STATUS_OPEN && !keyActive(K_ALT)) { KEYBOARD_PRESS(KEY_LEFT_ALT); }
-            KEYBOARD_PRESS(toPrint);
+            pressEntry(toPrint);
           }
         } else {
-          if (toPrint!=NULL) {
-            KEYBOARD_RELEASE(toPrint);
+          if (!keyEntryEmpty(toPrint)) {
+            releaseEntry(toPrint);
           }
-          if (other1!=NULL) {
-            KEYBOARD_RELEASE(other1);
+          if (!keyEntryEmpty(other1)) {
+            releaseEntry(other1);
           }
-          if (other2!=NULL) {
-            KEYBOARD_RELEASE(other2);
+          if (!keyEntryEmpty(other2)) {
+            releaseEntry(other2);
           }
-          if (!keyActive(K_LSH)) { KEYBOARD_RELEASE(KEY_LEFT_SHIFT); }
-          if (!keyActive(K_RSH)) { KEYBOARD_RELEASE(KEY_RIGHT_SHIFT); }
-          if (!keyActive(K_MIC)) { KEYBOARD_RELEASE(KEY_LEFT_CTRL); }
-          if (!keyActive(K_ALT)) { KEYBOARD_RELEASE(KEY_LEFT_ALT); }
+          releaseModBit(1);
+          releaseModBit(5);
+          releaseModBit(0);
+          releaseModBit(2);
         }
       }
     }
@@ -529,6 +880,7 @@ void printMatrix() {
 
 void loop() {
   idleWakeup = false;
+  handleSerial();
   unsigned long startms = millis();
   #if BOARD_TYPE == ESP32
   if (bleKeyboard.isConnected()) {
@@ -537,14 +889,6 @@ void loop() {
       printMatrix();
       unstickKeys();
 
-      // increase backlight if mic key + sym key is pressed
-      if (keyActive(K_MIC) && keyPressed(K_SYM)) {
-        changeKeyboardBacklight(keyboardLightSteps, keyboardLightSteps, true);
-      }
-      // decrease backlight if mic key + right shift key is pressed
-      if (keyActive(K_MIC) && keyPressed(K_RSH)) {
-        changeKeyboardBacklight(-keyboardLightSteps, -keyboardLightSteps, true);
-      }
 
       // instant powersave mode if SYM + Enter is pressed
       if (keyActive(K_SYM) && keyPressed(K_ENTER)) {
@@ -576,6 +920,11 @@ void loop() {
       changeKeyboardBacklight(0, 0, blinkState);
     }
   #endif
+  #ifdef STATUS_LED_PATTERNS
+    if (idleTimeout >= millis()) {
+      updateStatusLedDisplay(millis());
+    }
+  #endif
   #ifdef LED0_IN_CURSOR_MODE
     digitalWrite(LED0_PIN, cursorMode);
   #endif
@@ -586,15 +935,17 @@ void loop() {
     #endif
     changeKeyboardBacklight(0, 0, false);
     resetStickyKeys();
+    // The HID reports are rebuilt after wake, so combo state cannot survive sleep.
+    resetActiveCombos();
     firstSleep = false;
     #ifdef POWERSAVE_ARDUINO_POWERDOWN
       if (!connectionNeedsReinit) {
         Keyboard.end();
         USBDevice.detach();
         USBCON &= ~(1 << USBE);
-        //USBCON |= (1 << FRZCLK);
+        // USBCON |= (1 << FRZCLK);
         
-        //USBDevice.standby();
+        // USBDevice.standby();
 
         delay(300);
         while (USBDevice.isSuspended()) {}

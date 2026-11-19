@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorOnPrimary">@color/text_primary</item>
+        <item name="colorPrimaryContainer">@color/accent_container</item>
+        <item name="colorOnPrimaryContainer">@color/accent</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="colorOutline">@color/outline_strong</item>
+        <item name="android:colorBackground">@color/app_background</item>
+        <item name="android:statusBarColor">@color/app_background</item>
+        <item name="android:navigationBarColor">@color/app_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.Fairberry.Cell</item>
+        <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.Fairberry.Card</item>
+        <item name="materialCardViewStyle">@style/Widget.Fairberry.Card</item>
+        <item name="materialButtonStyle">@style/Widget.Fairberry.Button</item>
+        <item name="editTextStyle">@style/Widget.Fairberry.Field</item>
+
+        <item name="textAppearanceTitleLarge">@style/TextAppearance.Fairberry.Title</item>
+        <item name="textAppearanceBodyMedium">@style/TextAppearance.Fairberry.Body</item>
+        <item name="textAppearanceBodySmall">@style/TextAppearance.Fairberry.Caption</item>
+
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.Fairberry.Dialog</item>
+    </style>
+
+    <!-- Pickers are built with MaterialAlertDialogBuilder, so the dialog needs the rounded
+         shape and the raised surface the rest of the screen uses. -->
+    <style name="ThemeOverlay.Fairberry.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorSurface">@color/surface_raised</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Fairberry.Card</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar" parent="AppTheme"/>
+</resources>

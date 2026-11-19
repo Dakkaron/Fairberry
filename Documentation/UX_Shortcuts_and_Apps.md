@@ -29,6 +29,19 @@ These key combinations work out of the box and don't require any other apps.
 - Ctrl + Right Shift: Decrease keyboard backlight brightness
 - Sym + Enter: Put the keyboard into sleep mode (with keyboard backlight turned off)
 
+# LED state display
+
+The left and right halves of the keyboard LEDs show which state the keyboard is in. A pattern is applied on top of the brightness you have set, so it never changes the brightness itself, and the patterns only run while the keyboard is awake.
+
+- No state: both halves stay at the brightness you set
+- Cursor mode: both halves pulse together
+- Sym lock: the two halves pulse alternately
+- Caps lock (shift lock): the left half pulses while the right half stays on
+- Ctrl lock: the right half pulses
+- Alt lock: the two halves pulse alternately, with a shorter period
+
+Only one state can be active at a time, so each state has its own pattern.
+
 # Adding key combinations
 
 Using the Key Mapper app by sds100 you can add more advanced key combinations that an USB keyboard can't just do on it's own. I currently use the following shortcuts, but feel free to do whatever you want.

@@ -1,9 +1,9 @@
-#if BOARD_TYPE == FAIRBERRY_V0_1_1 || BOARD_TYPE == FAIRBERRY_V0_2_0 || BOARD_TYPE == FAIRBERRY_V0_3_0 || BOARD_TYPE == ARDUINO || BOARD_TYPE==BEETLE
+#if BOARD_TYPE == FAIRBERRY_V0_1_1 || BOARD_TYPE == FAIRBERRY_V0_2_0 || BOARD_TYPE == FAIRBERRY_V0_3_0 || BOARD_TYPE == BOARD_ARDUINO || BOARD_TYPE==BEETLE
   #define CHIP_TYPE CHIP_ATMEGA32U4
 #elif BOARD_TYPE == ESP32
   #define CHIP_ESP32
 #else
-  #error "No valid BOARD_TYPE selected. Needs to be any of FAIRBERRY_V0_1_1, FAIRBERRY_V0_2_0, FAIRBERRY_V0_3_0, ARDUINO, BEETLE, ESP32"
+  #error "No valid BOARD_TYPE selected. Needs to be any of FAIRBERRY_V0_1_1, FAIRBERRY_V0_2_0, FAIRBERRY_V0_3_0, BOARD_ARDUINO, BEETLE, ESP32"
 #endif
 
 #if defined(POWERSAVE_ARDUINO_IDLE) && defined(POWERSAVE_ARDUINO_POWERDOWN)
@@ -56,7 +56,7 @@
 
 #if CHIP_TYPE == CHIP_ATMEGA32U4
   #if !defined(DEBUG_SERIAL_INSTEAD_OF_USB)
-    #include "Keyboard.h"
+    #include <HID-Project.h>
   #endif
   #include "LowPower.h"
   #include <avr/power.h>
@@ -66,11 +66,19 @@
     #define KEYBOARD_BEGIN(layout) ;
     #define KEYBOARD_PRESS(key) Serial.print("Pressed ");Serial.println(key);
     #define KEYBOARD_RELEASE(key) Serial.print("Released ");Serial.println(key);
+    #define KEYBOARD_PRESS_CONSUMER(usage) Serial.print("Pressed consumer ");Serial.println(usage);
+    #define KEYBOARD_RELEASE_CONSUMER(usage) Serial.print("Released consumer ");Serial.println(usage);
   #else
-    #define KEYBOARD_BEGIN(layout) Keyboard.begin(layout)
+    #define KEYBOARD_BEGIN(layout) Keyboard.begin()
     #define KEYBOARD_END() Keyboard.end()
-    #define KEYBOARD_PRESS(key) Keyboard.press(key)
-    #define KEYBOARD_RELEASE(key) Keyboard.release(key)
+    // A uint8_t argument is resolved through HID-Project's ASCII table, so raw
+    // usage ids must be passed as KeyboardKeycode or they are looked up twice.
+    #define KEYBOARD_PRESS(key) Keyboard.press((KeyboardKeycode)(key))
+    #define KEYBOARD_RELEASE(key) Keyboard.release((KeyboardKeycode)(key))
+    // Consumer page usages cannot go through the keyboard report: they need the
+    // separate consumer report (HID report id 4).
+    #define KEYBOARD_PRESS_CONSUMER(usage) Consumer.press((ConsumerKeycode)(usage))
+    #define KEYBOARD_RELEASE_CONSUMER(usage) Consumer.release((ConsumerKeycode)(usage))
   #endif
 #elif BOARD_TYPE == ESP32
   #include "analogWrite.h"
@@ -86,11 +94,14 @@
   #define KEYBOARD_END() bleKeyboard.end()
   #define KEYBOARD_PRESS(key) bleKeyboard.press(key)
   #define KEYBOARD_RELEASE(key) bleKeyboard.release(key)
+  // BleKeyboard has no consumer report, so consumer page keys are dropped there.
+  #define KEYBOARD_PRESS_CONSUMER(usage) ;
+  #define KEYBOARD_RELEASE_CONSUMER(usage) ;
 #endif
 
 #if BOARD_TYPE == FAIRBERRY_V0_3_0
   byte rows[] = {A1,7,8,9,10,5,A0};
-  //byte cols[] = {4,30,1,12,6}; // Arduino pinout for reference only
+  // byte cols[] = {4,30,1,12,6}; // Arduino pinout for reference only
   byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
 
   #define KEYBOARD_LIGHT_PIN_1 13
@@ -109,7 +120,7 @@
   #define FASTCOLS_PINCONFIG DDRD
 #elif BOARD_TYPE == FAIRBERRY_V0_2_0
   byte rows[] = {A1,7,8,9,10,5,A0};
-  //byte cols[] = {4,30,1,12,6}; // Arduino pinout for reference only
+  // byte cols[] = {4,30,1,12,6}; // Arduino pinout for reference only
   byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
 
   #define KEYBOARD_LIGHT_PIN_1 13
@@ -129,7 +140,7 @@
   #define FASTCOLS_PINCONFIG DDRD
 #elif BOARD_TYPE == FAIRBERRY_V0_1_1
   byte rows[] = {A1,A2,8,9,10,5,A0};
-  //byte cols[] = {4,30,1,12,6}; // Arduino pinout for reference only
+  // byte cols[] = {4,30,1,12,6}; // Arduino pinout for reference only
   byte cols[] = {4,5,3,6,7}; // Using PORTD numbering instead of Arduino numbering
 
   #define FASTCHECK
@@ -146,7 +157,7 @@
   #define FASTCOLS
   #define FASTCOLS_PORT PORTD
   #define FASTCOLS_PINCONFIG DDRD
-#elif BOARD_TYPE == ARDUINO
+#elif BOARD_TYPE == BOARD_ARDUINO
   byte rows[] = {9,8,7,6,5,4,A2};
   byte cols[] = {A1,A0,15,14,16};
 
