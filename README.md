@@ -28,8 +28,11 @@ changed live over the keyboard's USB serial interface and is persisted to
 EEPROM, so custom layouts survive reboot. Build it with:
 
 ```sh
-sh tools/build_firmware.sh
+arduino-cli compile --fqbn arduino:avr:leonardo \
+  --libraries BBQ10/libraries --export-binaries BBQ10
 ```
+
+which writes the image to `BBQ10/build/arduino.avr.leonardo/BBQ10.ino.hex`.
 
 The Android companion app (`AndroidApp/`) lets you edit the keymap on your
 phone and flash new firmware images through the keyboard's USB bootloader —

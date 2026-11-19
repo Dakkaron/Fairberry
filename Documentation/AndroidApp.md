@@ -111,8 +111,10 @@ connection keeps the keyboard responsive.
 
 ## Flashing firmware
 
-1. `sh tools/build_firmware.sh` builds `BBQ10/build/arduino.avr.leonardo/BBQ10.ino.hex`
-   (board `arduino:avr:leonardo`, HID-Project vendored in `BBQ10/libraries/`).
+1. Build the firmware with arduino-cli (`compile --fqbn arduino:avr:leonardo
+   --libraries BBQ10/libraries --export-binaries`), which produces
+   `BBQ10/build/arduino.avr.leonardo/BBQ10.ino.hex`
+   (HID-Project is vendored in `BBQ10/libraries/`).
 2. In the app: **Select .hex** (system file picker), then **Flash firmware**.
    A single press completes the whole flow: if no device is open yet the app
    connects first (the pending flash fires as soon as the device opens), then
