@@ -17,6 +17,7 @@
 #include "constants.h"
 #include "keymaps.h"
 #include "boards.h"
+#include "combos.h"
 #include "protocol.h"
 
 
@@ -57,6 +58,10 @@ void(* resetFunc) (void) = 0;
 void setup() {
     loadFactoryDefaults();
     loadKeymapFromEEPROM();
+    if (!loadCombosFromEEPROM()) {
+        loadComboDefaults();
+    }
+    resetActiveCombos();
 
     #if CHIP_TYPE == CHIP_ATMEGA32U4
       Serial.begin(9600); // ignored by the USB CDC layer, sets the UART baud in debug mode
@@ -118,7 +123,9 @@ void setup() {
 }
 
 void updateStickyKeyStates() {
-  if (keyPressed(K_SYM) && !keyActive(K_MIC)) { // SYM(0,2) (inactive while CTRL(0,6) is held, because of brightness down)
+  // Sym and RightShift are also combo keycaps; when a combo consumes the press,
+  // the keycap must not also act as its sticky mode key.
+  if (keyPressed(K_SYM) && comboFiring(K_SYM) < 0) { // SYM(0,2)
     byte tmp = stickySym;
     resetStickyKeys();
     stickySym = tmp + 1;
@@ -128,7 +135,7 @@ void updateStickyKeyStates() {
     resetStickyKeys();
     stickyLsh = tmp + 1;
   }
-  if (keyPressed(K_RSH) && !keyActive(K_MIC)) { // RSH(2,3) (inactive while CTRL(0,6) is held, because of brightness down)
+  if (keyPressed(K_RSH) && comboFiring(K_RSH) < 0) { // RSH(2,3)
     byte tmp = stickyRsh;
     resetStickyKeys();
     stickyRsh = tmp + 1;
@@ -496,6 +503,137 @@ void releaseModBit(int bit) {
   KEYBOARD_RELEASE((uint8_t)(0xE0 + bit));
 }
 
+int8_t activeCombo[COMBO_KEYS];
+// The modifier bits a combo added to the report for that key, so releasing the
+// chord cannot take away a modifier another key is still using.
+uint8_t activeComboBits[COMBO_KEYS];
+
+void resetActiveCombos() {
+  for (int i = 0; i < COMBO_KEYS; i++) {
+    activeCombo[i] = -1;
+    activeComboBits[i] = 0;
+  }
+}
+
+int activeModeIndex(int col, int row) {
+  if (cursorMode) return MODE_CURSOR;
+  if (stickySym != STICKY_STATUS_OPEN || keyActive(K_SYM)) return MODE_SYMBOL;
+  return MODE_NORMAL;
+}
+
+// The modifier bits the keyboard is currently sending, plus the sticky modifiers. The key
+// being tested is not part of the set: a combo only fires for a key added while its modifier
+// is already held.
+uint8_t heldModBits(int excludeCol, int excludeRow) {
+  uint8_t bits = 0;
+  for (int col = 0; col < colCount; col++) {
+    for (int row = 0; row < rowCount; row++) {
+      if (col == excludeCol && row == excludeRow) {
+        continue;
+      }
+      if (keyActive(col, row)) {
+        bits |= keymap[activeModeIndex(col, row)][col][row].mods;
+      }
+    }
+  }
+  if (stickyCtrl != STICKY_STATUS_OPEN) bits |= MOD_LCTRL;
+  if (stickyLsh != STICKY_STATUS_OPEN) bits |= MOD_LSHIFT;
+  if (stickyRsh != STICKY_STATUS_OPEN) bits |= MOD_RSHIFT;
+  if (stickyAlt != STICKY_STATUS_OPEN) bits |= MOD_LALT;
+  return bits;
+}
+
+int comboFiring(int col, int row) {
+  uint8_t held = heldModBits(col, row);
+  for (int bit = 0; bit < 8; bit++) {
+    if (held & (1 << bit)) {
+      int slot = findCombo(1 << bit, keyIndex(col, row));
+      if (slot >= 0) {
+        return slot;
+      }
+    }
+  }
+  return -1;
+}
+
+void performDeviceAction(uint8_t value) {
+  if (value == KV_ACTION_BACKLIGHT_DOWN) {
+    changeKeyboardBacklight(-keyboardLightSteps, -keyboardLightSteps, true);
+  } else if (value == KV_ACTION_BACKLIGHT_UP) {
+    changeKeyboardBacklight(keyboardLightSteps, keyboardLightSteps, true);
+  }
+}
+
+// The chord's modifier bits are handled once for the whole chord, so a shared bit is not
+// released early by one output.
+void sendOutputPress(int slot, int output) {
+  uint8_t value = combos[slot].outputs[output].value;
+  if (isDeviceAction(value)) {
+    performDeviceAction(value);
+    return;
+  }
+
+  bool needsShift;
+  uint8_t usage = keyEntryUsage(combos[slot].outputs[output], needsShift);
+  if (isConsumerValue(value)) {
+    uint16_t consumer = consumerUsage(value);
+    if (consumer != 0) {
+      KEYBOARD_PRESS_CONSUMER(consumer);
+    }
+  } else if (usage != 0) {
+    KEYBOARD_PRESS(usage);
+  }
+}
+
+void sendOutputRelease(int slot, int output) {
+  uint8_t value = combos[slot].outputs[output].value;
+  if (isDeviceAction(value)) {
+    return; // device actions have no release half
+  }
+
+  bool needsShift;
+  uint8_t usage = keyEntryUsage(combos[slot].outputs[output], needsShift);
+  if (isConsumerValue(value)) {
+    uint16_t consumer = consumerUsage(value);
+    if (consumer != 0) {
+      KEYBOARD_RELEASE_CONSUMER(consumer);
+    }
+  } else if (usage != 0) {
+    KEYBOARD_RELEASE(usage);
+  }
+}
+
+void pressComboChord(int slot, int pos, uint8_t heldBefore) {
+  // A modifier bit held before the combo fired belongs to another key, except the
+  // combo's own modifier, which the combo has just dropped from the report.
+  uint8_t added = comboOutputModBits(slot) & (~heldBefore | combos[slot].mod);
+  for (int bit = 0; bit < 8; bit++) {
+    if (added & (1 << bit)) {
+      pressModBit(bit);
+    }
+  }
+  activeComboBits[pos] = added;
+  for (int out = 0; out < COMBO_OUTPUTS; out++) {
+    sendOutputPress(slot, out);
+  }
+}
+
+// Reverse order: a key is never released while an earlier output still needs the
+// modifier that produced it.
+void releaseComboChord(int slot, int pos) {
+  for (int out = COMBO_OUTPUTS - 1; out >= 0; out--) {
+    sendOutputRelease(slot, out);
+  }
+
+  uint8_t added = activeComboBits[pos];
+  for (int bit = 0; bit < 8; bit++) {
+    if (added & (1 << bit)) {
+      releaseModBit(bit);
+    }
+  }
+  activeComboBits[pos] = 0;
+}
+
 void pressEntry(const KeyEntry& entry) {
   bool needsShift;
   uint8_t usage = keyEntryUsage(entry, needsShift);
@@ -510,6 +648,8 @@ void pressEntry(const KeyEntry& entry) {
     if (consumer != 0) {
       KEYBOARD_PRESS_CONSUMER(consumer);
     }
+  } else if (isDeviceAction(entry.value)) {
+    performDeviceAction(entry.value);
   } else if (usage != 0) {
     KEYBOARD_PRESS(usage);
   }
@@ -537,6 +677,28 @@ void releaseEntry(const KeyEntry& entry) {
 void printMatrix() {
   for (int rowIndex=0; rowIndex < rowCount; rowIndex++) {
     for (int colIndex=0; colIndex < colCount; colIndex++) {
+      int pos = keyIndex(colIndex, rowIndex);
+
+      if (keyPressed(colIndex, rowIndex)) {
+        int slot = comboFiring(colIndex, rowIndex);
+        if (slot >= 0) {
+          int held = heldModBits(colIndex, rowIndex);
+          activeCombo[pos] = slot;
+          KEYBOARD_RELEASE((uint8_t)(0xE0 + comboModifierBit(combos[slot].mod)));
+          pressComboChord(slot, pos, held);
+          continue;
+        }
+      } else if (keyReleased(colIndex, rowIndex) && activeCombo[pos] >= 0) {
+        int slot = activeCombo[pos];
+        releaseComboChord(slot, pos);
+        activeCombo[pos] = -1;
+        int bit = comboModifierBit(combos[slot].mod);
+        if (heldModBits(colIndex, rowIndex) & (1 << bit)) {
+          pressModBit(bit);
+        }
+        continue;
+      }
+
       // we only want to print if the key is pressed and it is a printable character
       if (keyChanged(colIndex, rowIndex) && isPrintableKey(colIndex, rowIndex)) {
         KeyEntry toPrint;
@@ -601,14 +763,6 @@ void loop() {
       printMatrix();
       unstickKeys();
 
-      // increase backlight if mic key + sym key is pressed
-      if (keyActive(K_MIC) && keyPressed(K_SYM)) {
-        changeKeyboardBacklight(keyboardLightSteps, keyboardLightSteps, true);
-      }
-      // decrease backlight if mic key + right shift key is pressed
-      if (keyActive(K_MIC) && keyPressed(K_RSH)) {
-        changeKeyboardBacklight(-keyboardLightSteps, -keyboardLightSteps, true);
-      }
 
       // instant powersave mode if SYM + Enter is pressed
       if (keyActive(K_SYM) && keyPressed(K_ENTER)) {
@@ -650,6 +804,8 @@ void loop() {
     #endif
     changeKeyboardBacklight(0, 0, false);
     resetStickyKeys();
+    // The HID reports are rebuilt after wake, so combo state cannot survive sleep.
+    resetActiveCombos();
     firstSleep = false;
     #ifdef POWERSAVE_ARDUINO_POWERDOWN
       if (!connectionNeedsReinit) {

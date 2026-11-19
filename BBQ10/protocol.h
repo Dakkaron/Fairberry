@@ -1,35 +1,15 @@
 /*
- * Text line protocol for updating the keymap over USB CDC (Serial).
- *
- * Commands (uppercase letter, optional space-separated decimal arguments):
- *   I                 -> INFO <firmware> <protocol> <storage>
- *   L                 -> one K line per keymap entry (all modes)
- *   R <mode>          -> K lines for one mode
- *   M <mode> <col> <row> <value> <mods>  -> set one entry in RAM
- *   D                 -> reload keymap from EEPROM
- *   F                 -> load factory defaults into RAM
- *   W                 -> write RAM keymap to EEPROM
- *   P                 -> keepalive: refresh the idle timeout, no response
- *   Z                 -> soft reset (restart the sketch)
- *   B                 -> reboot into the USB bootloader (Caterina) for reflashing
- * Responses: OK, ERR, K <mode> <col> <row> <value> <mods>, INFO ...
- *
- * Values follow the Arduino Keyboard library (Keyboard.h): printable characters
- * are their ASCII code, everything else is a Keyboard.h constant (128..135 are
- * the modifiers, 136..255 map to HID usage page 0x07 as value - 136). Values
- * 136..175 are reserved for consumer page (0x0C) keys, which are sent on a
- * separate HID report: see keymaps.h consumerUsageMap.
- *
- * Only available on AVR boards: the protocol lives on the same USB CDC
- * interface as the keyboard HID interface and the Caterina bootloader.
+ * Combination arguments take the modifier as one bitmask bit (bit 0 = left ctrl .. bit 7 =
+ * right gui), the key as its physical matrix cell, then three output value/mods pairs.
  */
 
 #ifdef __AVR__
 
 #include <avr/wdt.h>
+#include "combos.h"
 
-#define FIRMWARE_VERSION "3.1"
-#define KEYMAP_PROTOCOL_VERSION 3
+#define FIRMWARE_VERSION "3.2"
+#define KEYMAP_PROTOCOL_VERSION 4
 
 extern volatile unsigned long idleTimeout;
 extern void(* resetFunc)(void);
@@ -55,6 +35,24 @@ void printKeymapMode(int mode) {
       printKeyEntry(mode, col, row);
     }
   }
+}
+
+void printComboEntry(int slot) {
+  int pos = combos[slot].key;
+  Serial.print('G');
+  Serial.print(' ');
+  Serial.print(combos[slot].mod);
+  Serial.print(' ');
+  Serial.print(pos / rowCount);
+  Serial.print(' ');
+  Serial.print(pos % rowCount);
+  for (int out = 0; out < COMBO_OUTPUTS; out++) {
+    Serial.print(' ');
+    Serial.print(combos[slot].outputs[out].value);
+    Serial.print(' ');
+    Serial.print(combos[slot].outputs[out].mods);
+  }
+  Serial.println();
 }
 
 int readProtocolNumber() {
@@ -182,6 +180,62 @@ void handleSerial() {
       case 'W':
         writeKeymapToEEPROM();
         printProtocolOK();
+        break;
+      case 'C':
+        for (int i = 0; i < COMBO_MAX; i++) {
+          if (combos[i].mod != 0) {
+            printComboEntry(i);
+          }
+        }
+        printProtocolOK();
+        break;
+      case 'N': {
+        int mod = readProtocolNumber();
+        int col = readProtocolNumber();
+        int row = readProtocolNumber();
+        KeyEntry outputs[COMBO_OUTPUTS];
+        bool valid = col >= 0 && col < colCount && row >= 0 && row < rowCount;
+        for (int out = 0; out < COMBO_OUTPUTS && valid; out++) {
+          int value = readProtocolNumber();
+          int mods = readProtocolNumber();
+          if (value < 0 || mods < 0) {
+            valid = false;
+            break;
+          }
+          outputs[out] = KeyEntry{(uint8_t)value, (uint8_t)mods};
+        }
+        if (valid && addCombo(mod, keyIndex(col, row), outputs)) {
+          printProtocolOK();
+        } else {
+          printProtocolERR();
+        }
+        break;
+      }
+      case 'X': {
+        int mod = readProtocolNumber();
+        int col = readProtocolNumber();
+        int row = readProtocolNumber();
+        if (removeCombo(mod, keyIndex(col, row))) {
+          printProtocolOK();
+        } else {
+          printProtocolERR();
+        }
+        break;
+      }
+      case 'T':
+        writeCombosToEEPROM();
+        printProtocolOK();
+        break;
+      case 'V':
+        loadComboDefaults();
+        printProtocolOK();
+        break;
+      case 'Y':
+        if (loadCombosFromEEPROM()) {
+          printProtocolOK();
+        } else {
+          printProtocolERR();
+        }
         break;
       case 'P':
         // No response: the host sends this to keep the board awake while its app

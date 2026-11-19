@@ -15,12 +15,17 @@
  *
  * Values 136..175 name no Keyboard.h constant, so that block is reserved for HID
  * consumer page (0x0C) keys, whose usages do not fit in one byte; see
- * consumerUsageMap. The storage format is unchanged.
+ * consumerUsageMap. Values 252..255 are the four constants Keyboard.h leaves
+ * undefined above that block, and they name actions the firmware performs itself
+ * rather than a usage sent to the host. The storage format is unchanged.
  *
  * Three modes exist per key position: normal, symbol and cursor.
  * The active keymap is kept in RAM and can be updated over the serial
  * protocol (see protocol.h). On AVR boards it is persisted to EEPROM.
  */
+
+#ifndef FAIRBERRY_KEYMAPS_H
+#define FAIRBERRY_KEYMAPS_H
 
 #include <Arduino.h>
 
@@ -113,6 +118,13 @@
 #define KV_VOLUME_MUTE 138
 #define KV_VOLUME_UP 139
 #define KV_VOLUME_DOWN 140
+#define KV_APP_SWITCH 141     // usage 0x01A2, which hid-input reports as Linux
+
+// Device actions are not HID usages: they name things the firmware does itself,
+// and they are only reachable as a combination output.
+#define KV_ACTION_BASE 252
+#define KV_ACTION_BACKLIGHT_DOWN 252
+#define KV_ACTION_BACKLIGHT_UP 253
 
 struct KeyEntry {
   uint8_t value; // ASCII code for text, otherwise a Keyboard.h constant; 0 == none
@@ -143,7 +155,7 @@ static const uint8_t asciiUsageMap[128] PROGMEM = {
 
 // Value - KV_CONSUMER_BASE -> consumer page usage, 0 for the unassigned slots.
 static const uint16_t consumerUsageMap[KV_CONSUMER_COUNT] PROGMEM = {
-  0x0223, 0x0224, 0x00E2, 0x00E9, 0x00EA,
+  0x0223, 0x0224, 0x00E2, 0x00E9, 0x00EA, 0x01A2,
   0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
   0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
   0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
@@ -161,12 +173,19 @@ inline uint16_t consumerUsage(uint8_t value) {
   return pgm_read_word(&consumerUsageMap[value - KV_CONSUMER_BASE]);
 }
 
+inline bool isDeviceAction(uint8_t value) {
+  return value >= KV_ACTION_BASE && value <= 255;
+}
+
 // HID usage to send for an entry; *needsShift reports the shift modifier the
 // character itself requires, on top of entry.mods.
 inline uint8_t keyEntryUsage(const KeyEntry& entry, bool& needsShift) {
   needsShift = false;
   if (isConsumerValue(entry.value)) {
     return 0; // consumer keys are sent on the consumer report, see consumerUsage
+  }
+  if (isDeviceAction(entry.value)) {
+    return 0; // device actions are performed by the firmware, not sent to the host
   }
   if (entry.value < 128) {
     uint8_t mapped = pgm_read_byte(&asciiUsageMap[entry.value]);
@@ -302,4 +321,6 @@ bool loadKeymapFromEEPROM() {
 
 void writeKeymapToEEPROM() {
 }
+#endif
+
 #endif
