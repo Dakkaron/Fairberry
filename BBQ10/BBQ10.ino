@@ -19,6 +19,7 @@
 #include "boards.h"
 #include "combos.h"
 #include "protocol.h"
+#include "statusleds.h"
 
 
 bool keys[colCount][rowCount];
@@ -505,6 +506,36 @@ void setKeyboardBacklight(int pwmValue1, int pwmValue2, bool on) {
   }
 }
 
+#ifdef STATUS_LED_PATTERNS
+unsigned long ledDisplayPhaseStart = 0;
+unsigned long ledDisplayNextUpdate = 0;
+int ledDisplayState = LED_STATE_PLAIN;
+
+void updateStatusLedDisplay(unsigned long now) {
+  if (now < ledDisplayNextUpdate) return;
+  ledDisplayNextUpdate = now + LED_DISPLAY_INTERVAL_MS;
+
+  int state = activeLedState(cursorMode,
+      stickySym == STICKY_STATUS_LOCKED,
+      stickyLsh == STICKY_STATUS_LOCKED || stickyRsh == STICKY_STATUS_LOCKED,
+      stickyCtrl == STICKY_STATUS_LOCKED,
+      stickyAlt == STICKY_STATUS_LOCKED);
+  if (state != ledDisplayState) {
+    ledDisplayState = state;
+    ledDisplayPhaseStart = now;
+  }
+
+  unsigned long phaseMs = now - ledDisplayPhaseStart;
+
+  #ifdef KEYBOARD_LIGHT_PIN_1
+    analogWrite(KEYBOARD_LIGHT_PIN_1, (keyboardLight1 * ledHalfEnvelope(ledRuleFor(ledDisplayState, LED_HALF_LEFT), phaseMs)) / 255);
+  #endif
+  #ifdef KEYBOARD_LIGHT_PIN_2
+    analogWrite(KEYBOARD_LIGHT_PIN_2, (keyboardLight2 * ledHalfEnvelope(ledRuleFor(ledDisplayState, LED_HALF_RIGHT), phaseMs)) / 255);
+  #endif
+}
+#endif
+
 void unstickKeys() {
   if (anyKeyReleased) {
     stickySym = (stickySym==STICKY_STATUS_STICKY) ? keyPressed(K_SYM) : stickySym;
@@ -892,6 +923,11 @@ void loop() {
         blinkState = true;
       }
       changeKeyboardBacklight(0, 0, blinkState);
+    }
+  #endif
+  #ifdef STATUS_LED_PATTERNS
+    if (idleTimeout >= millis()) {
+      updateStatusLedDisplay(millis());
     }
   #endif
   #ifdef LED0_IN_CURSOR_MODE

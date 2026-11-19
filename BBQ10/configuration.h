@@ -64,9 +64,28 @@
  * If you are using a fairberry mainboard, you can use LED0_IN_CURSOR_MDOE
  * instead of BLINK_IN_CURSOR_MODE, to have the LED0 glow when in cursor mode (doesn't blink).
  */
-#define BLINK_IN_CURSOR_MODE
+// #define BLINK_IN_CURSOR_MODE
 #define BLINK_TIMEOUT 20L
 // #define LED0_IN_CURSOR_MODE
+
+/*
+ * ## LED state display
+ * 
+ * The two LED halves show the state the keyboard is in as an envelope over the
+ * configured brightness, so a pattern never overwrites the brightness settings:
+ * plain state keeps both halves as set, cursor mode pulses both halves together,
+ * sym lock pulses them alternately, caps lock (the double tap shift lock) pulses
+ * the left half while the right half stays on, ctrl lock pulses the right half,
+ * alt lock pulses both halves alternately with a short period.
+ * 
+ * Patterns only run while the keyboard is awake, so idle power saving is not
+ * affected by them. Change the periods to change how fast a pulse breathes;
+ * LED_DISPLAY_INTERVAL_MS is how often the envelope is written to the pins.
+ */
+#define STATUS_LED_PATTERNS
+#define LED_PULSE_PERIOD_MS 1000L
+#define LED_FAST_PULSE_PERIOD_MS 400L
+#define LED_DISPLAY_INTERVAL_MS 20L
 
 /*
  * 
