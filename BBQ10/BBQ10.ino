@@ -465,11 +465,6 @@ bool keyActive(int colIndex, int rowIndex) {
   return keys[colIndex][rowIndex] == true;
 }
 
-bool isPrintableKey(int colIndex, int rowIndex) {
-  return !keyEntryEmpty(keymap[MODE_SYMBOL][colIndex][rowIndex]) ||
-         !keyEntryEmpty(keymap[MODE_NORMAL][colIndex][rowIndex]);
-}
-
 void changeKeyboardBacklight(int change1, int change2, bool on) {
   setKeyboardBacklight(keyboardLight1 + change1, keyboardLight2 + change2, on);
 }
@@ -831,7 +826,7 @@ void printMatrix() {
       }
 
       // we only want to print if the key is pressed and it is a printable character
-      if (keyChanged(colIndex, rowIndex) && isPrintableKey(colIndex, rowIndex)) {
+      if (keyChanged(colIndex, rowIndex)) {
         KeyEntry toPrint;
         KeyEntry other1;
         KeyEntry other2;
@@ -850,7 +845,7 @@ void printMatrix() {
         }
   
         // Workaround for left shift key dropping while being pressed
-        if (keyActive(K_LSH) && rowIndex!=1 && colIndex!=6) {
+        if (keyActive(K_LSH) && colIndex != K_LSH_COL && rowIndex != K_LSH_ROW) {
           KEYBOARD_RELEASE(KEY_LEFT_SHIFT);
           KEYBOARD_PRESS(KEY_LEFT_SHIFT);
         }
