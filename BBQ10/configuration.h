@@ -99,3 +99,10 @@
  * Enables serial debug logging. Only activate when debugging.
  */
 // #define SERIAL_DEBUG_LOG
+
+/*
+ * Logs each combination decision as a protocol line, plus every key state change that debounce
+ * filters out. Only activate when debugging, and only on AVR boards, where Serial is the CDC the
+ * app reads.
+ */
+// #define DEBUG_COMBO_DECISIONS

@@ -53,6 +53,18 @@ byte stickyAlt = STICKY_STATUS_OPEN;
 bool keyboardInit = false;
 bool cursorMode = false;
 
+/*
+ * Decision lines go out on the CDC the app reads; with the flag off the calls compile away.
+ */
+#ifdef DEBUG_COMBO_DECISIONS
+bool debugSawChange[colCount][rowCount];
+static inline void debugCombo(const char *event, int col, int row);
+static inline void debugEdge(const char *event, int col, int row, bool raw, bool sawChange);
+#else
+static inline void debugCombo(const char *, int, int) {}
+static inline void debugEdge(const char *, int, int, bool, bool) {}
+#endif
+
 void(* resetFunc) (void) = 0;
 
 void setup() {
@@ -125,22 +137,29 @@ void setup() {
 void updateStickyKeyStates() {
   // Sym and RightShift are also combo keycaps; when a combo consumes the press,
   // the keycap must not also act as its sticky mode key.
-  if (keyPressed(K_SYM) && comboFiring(K_SYM) < 0) { // SYM(0,2)
-    byte tmp = stickySym;
-    resetStickyKeys();
-    stickySym = tmp + 1;
+  if (keyPressed(K_SYM)) { // SYM(0,2)
+    debugCombo("symPress", K_SYM);
+    if (comboFiring(K_SYM) < 0) {
+      byte tmp = stickySym;
+      resetStickyKeys();
+      stickySym = tmp + 1;
+    }
   }
   if (keyPressed(K_LSH)) { // LSH(1,6)
     byte tmp = stickyLsh;
     resetStickyKeys();
     stickyLsh = tmp + 1;
   }
-  if (keyPressed(K_RSH) && comboFiring(K_RSH) < 0) { // RSH(2,3)
-    byte tmp = stickyRsh;
-    resetStickyKeys();
-    stickyRsh = tmp + 1;
+  if (keyPressed(K_RSH)) { // RSH(2,3)
+    debugCombo("rshPress", K_RSH);
+    if (comboFiring(K_RSH) < 0) {
+      byte tmp = stickyRsh;
+      resetStickyKeys();
+      stickyRsh = tmp + 1;
+    }
   }
   if (stickySym==STICKY_STATUS_OPEN && keyPressed(K_MIC)) { // CTRL(0,6)
+    debugCombo("ctrlPress", K_MIC);
     byte tmp = stickyCtrl;
     resetStickyKeys();
     stickyCtrl = tmp + 1;
@@ -348,6 +367,22 @@ boolean readMatrix(byte debouceMsSinceLast) {
           debounceMs[colIndex][rowIndex] = 0;
         }
         changedValue[colIndex][rowIndex] = false;
+#ifdef DEBUG_COMBO_DECISIONS
+        /*
+         * The input is only read when a window is closed, so a press that happens inside
+         * one is invisible to the rest of the code: the probe below is the only way to see
+         * a press the window swallows. A press is lost when the window closes with the
+         * input back at the state the cell had recorded.
+         */
+        bool raw = (anyKeyPressed) && (digitalRead(curRow) == LOW);
+        if (raw != lastValue[colIndex][rowIndex]) {
+          debugSawChange[colIndex][rowIndex] = true;
+        }
+        if (debounceMs[colIndex][rowIndex] == 0 && debugSawChange[colIndex][rowIndex]) {
+          debugEdge("windowClosed", colIndex, rowIndex, raw, true);
+          debugSawChange[colIndex][rowIndex] = false;
+        }
+#endif
       } else { // If debouncing is not active, process the key press
         bool buttonPressed = (anyKeyPressed) && (digitalRead(curRow) == LOW);
         
@@ -357,6 +392,7 @@ boolean readMatrix(byte debouceMsSinceLast) {
           debounceMs[colIndex][rowIndex] = DEBOUNCE_MS;
           anyKeyReleased = anyKeyReleased | buttonPressed;
           anyKeyChanged = true;
+          debugEdge("edge", colIndex, rowIndex, buttonPressed, false);
         } else {
           changedValue[colIndex][rowIndex] = false;
         }
@@ -515,24 +551,31 @@ void resetActiveCombos() {
   }
 }
 
+// The mode in effect for the press being evaluated. A Sym press cannot have selected
+// symbol mode for keycaps that were already held: those keycaps are in the report as the
+// mode that was in effect when they were pressed, and a Sym press taken over by a combo
+// stops acting as the symbol modifier for the keys pressed after it.
 int activeModeIndex(int col, int row) {
   if (cursorMode) return MODE_CURSOR;
-  if (stickySym != STICKY_STATUS_OPEN || keyActive(K_SYM)) return MODE_SYMBOL;
-  return MODE_NORMAL;
+  if (stickySym != STICKY_STATUS_OPEN) return MODE_SYMBOL;
+  if (!keyActive(K_SYM)) return MODE_NORMAL;
+  if (col == K_SYM_COL && row == K_SYM_ROW) return MODE_NORMAL;
+  return activeCombo[keyIndex(K_SYM_COL, K_SYM_ROW)] >= 0 ? MODE_NORMAL : MODE_SYMBOL;
 }
 
 // The modifier bits the keyboard is currently sending, plus the sticky modifiers. The key
 // being tested is not part of the set: a combo only fires for a key added while its modifier
 // is already held.
-uint8_t heldModBits(int excludeCol, int excludeRow) {
+uint8_t heldModBits(int pressedCol, int pressedRow) {
+  int mode = activeModeIndex(pressedCol, pressedRow);
   uint8_t bits = 0;
   for (int col = 0; col < colCount; col++) {
     for (int row = 0; row < rowCount; row++) {
-      if (col == excludeCol && row == excludeRow) {
+      if (col == pressedCol && row == pressedRow) {
         continue;
       }
       if (keyActive(col, row)) {
-        bits |= keymap[activeModeIndex(col, row)][col][row].mods;
+        bits |= keymap[mode][col][row].mods;
       }
     }
   }
@@ -555,6 +598,59 @@ int comboFiring(int col, int row) {
   }
   return -1;
 }
+
+#ifdef DEBUG_COMBO_DECISIONS
+static inline void debugCombo(const char *event, int col, int row) {
+  int mode = activeModeIndex(col, row);
+  Serial.print("D ");
+  Serial.print(event);
+  Serial.print(' ');
+  Serial.print(col);
+  Serial.print(',');
+  Serial.print(row);
+  Serial.print(" mode=");
+  Serial.print(mode);
+  Serial.print(" held=");
+  Serial.print(heldModBits(col, row), HEX);
+  Serial.print(" slot=");
+  Serial.print(comboFiring(col, row));
+  Serial.print(" entry=");
+  Serial.print(keymap[mode][col][row].value, HEX);
+  Serial.print(" mods=");
+  Serial.print(keymap[mode][col][row].mods, HEX);
+  Serial.print(" down=");
+  Serial.print(keyActive(col, row) ? 1 : 0);
+  Serial.print(" activeSlot=");
+  Serial.print(static_cast<int>(activeCombo[keyIndex(col, row)]));
+  Serial.print(" sticky=");
+  Serial.print(stickySym);
+  Serial.print(',');
+  Serial.print(stickyCtrl);
+  Serial.print(',');
+  Serial.print(stickyRsh);
+  Serial.print(" cursor=");
+  Serial.print(cursorMode ? 1 : 0);
+  Serial.println();
+}
+
+static inline void debugEdge(const char *event, int col, int row, bool raw, bool sawChange) {
+  Serial.print("E ");
+  Serial.print(event);
+  Serial.print(' ');
+  Serial.print(col);
+  Serial.print(',');
+  Serial.print(row);
+  Serial.print(" raw=");
+  Serial.print(raw ? 1 : 0);
+  Serial.print(" last=");
+  Serial.print(lastValue[col][row] ? 1 : 0);
+  Serial.print(" window=");
+  Serial.print(debounceMs[col][row]);
+  Serial.print(" saw=");
+  Serial.print(sawChange ? 1 : 0);
+  Serial.println();
+}
+#endif
 
 void performDeviceAction(uint8_t value) {
   if (value == KV_ACTION_BACKLIGHT_DOWN) {
@@ -679,6 +775,10 @@ void printMatrix() {
     for (int colIndex=0; colIndex < colCount; colIndex++) {
       int pos = keyIndex(colIndex, rowIndex);
 
+      if (keyChanged(colIndex, rowIndex)) {
+        debugCombo("decision", colIndex, rowIndex);
+      }
+
       if (keyPressed(colIndex, rowIndex)) {
         int slot = comboFiring(colIndex, rowIndex);
         if (slot >= 0) {
@@ -708,7 +808,7 @@ void printMatrix() {
           toPrint = keymap[MODE_CURSOR][colIndex][rowIndex];
           other1  = keymap[MODE_NORMAL][colIndex][rowIndex];
           other2  = keymap[MODE_SYMBOL][colIndex][rowIndex];
-        } else if (stickySym != STICKY_STATUS_OPEN || keyActive(K_SYM)) {
+        } else if (activeModeIndex(colIndex, rowIndex) == MODE_SYMBOL) {
           toPrint = keymap[MODE_SYMBOL][colIndex][rowIndex];
           other1  = keymap[MODE_NORMAL][colIndex][rowIndex];
           other2  = keymap[MODE_CURSOR][colIndex][rowIndex];
