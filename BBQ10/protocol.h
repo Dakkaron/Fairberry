@@ -16,7 +16,9 @@
  *
  * Values follow the Arduino Keyboard library (Keyboard.h): printable characters
  * are their ASCII code, everything else is a Keyboard.h constant (128..135 are
- * the modifiers, 136..255 map to HID usage page 0x07 as value - 136).
+ * the modifiers, 136..255 map to HID usage page 0x07 as value - 136). Values
+ * 136..175 are reserved for consumer page (0x0C) keys, which are sent on a
+ * separate HID report: see keymaps.h consumerUsageMap.
  *
  * Only available on AVR boards: the protocol lives on the same USB CDC
  * interface as the keyboard HID interface and the Caterina bootloader.

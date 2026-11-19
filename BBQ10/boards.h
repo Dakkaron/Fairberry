@@ -66,6 +66,8 @@
     #define KEYBOARD_BEGIN(layout) ;
     #define KEYBOARD_PRESS(key) Serial.print("Pressed ");Serial.println(key);
     #define KEYBOARD_RELEASE(key) Serial.print("Released ");Serial.println(key);
+    #define KEYBOARD_PRESS_CONSUMER(usage) Serial.print("Pressed consumer ");Serial.println(usage);
+    #define KEYBOARD_RELEASE_CONSUMER(usage) Serial.print("Released consumer ");Serial.println(usage);
   #else
     #define KEYBOARD_BEGIN(layout) Keyboard.begin()
     #define KEYBOARD_END() Keyboard.end()
@@ -73,6 +75,10 @@
     // usage ids must be passed as KeyboardKeycode or they are looked up twice.
     #define KEYBOARD_PRESS(key) Keyboard.press((KeyboardKeycode)(key))
     #define KEYBOARD_RELEASE(key) Keyboard.release((KeyboardKeycode)(key))
+    // Consumer page usages cannot go through the keyboard report: they need the
+    // separate consumer report (HID report id 4).
+    #define KEYBOARD_PRESS_CONSUMER(usage) Consumer.press((ConsumerKeycode)(usage))
+    #define KEYBOARD_RELEASE_CONSUMER(usage) Consumer.release((ConsumerKeycode)(usage))
   #endif
 #elif BOARD_TYPE == ESP32
   #include "analogWrite.h"
@@ -88,6 +94,9 @@
   #define KEYBOARD_END() bleKeyboard.end()
   #define KEYBOARD_PRESS(key) bleKeyboard.press(key)
   #define KEYBOARD_RELEASE(key) bleKeyboard.release(key)
+  // BleKeyboard has no consumer report, so consumer page keys are dropped there.
+  #define KEYBOARD_PRESS_CONSUMER(usage) ;
+  #define KEYBOARD_RELEASE_CONSUMER(usage) ;
 #endif
 
 #if BOARD_TYPE == FAIRBERRY_V0_3_0

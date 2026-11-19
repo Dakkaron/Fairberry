@@ -505,7 +505,12 @@ void pressEntry(const KeyEntry& entry) {
       pressModBit(bit);
     }
   }
-  if (usage != 0) {
+  if (isConsumerValue(entry.value)) {
+    uint16_t consumer = consumerUsage(entry.value);
+    if (consumer != 0) {
+      KEYBOARD_PRESS_CONSUMER(consumer);
+    }
+  } else if (usage != 0) {
     KEYBOARD_PRESS(usage);
   }
 }
@@ -514,7 +519,12 @@ void releaseEntry(const KeyEntry& entry) {
   bool needsShift;
   uint8_t usage = keyEntryUsage(entry, needsShift);
   uint8_t mods = entry.mods | (needsShift ? MOD_LSHIFT : 0);
-  if (usage != 0) {
+  if (isConsumerValue(entry.value)) {
+    uint16_t consumer = consumerUsage(entry.value);
+    if (consumer != 0) {
+      KEYBOARD_RELEASE_CONSUMER(consumer);
+    }
+  } else if (usage != 0) {
     KEYBOARD_RELEASE(usage);
   }
   for (int bit = 0; bit < 8; bit++) {

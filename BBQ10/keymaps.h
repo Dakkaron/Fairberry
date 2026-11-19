@@ -13,6 +13,10 @@
  * Modifier values (128..135) are normalized into the modifier bitmask
  * (bit 0 = left ctrl .. bit 7 = right gui) and never stored as values.
  *
+ * Values 136..175 name no Keyboard.h constant, so that block is reserved for HID
+ * consumer page (0x0C) keys, whose usages do not fit in one byte; see
+ * consumerUsageMap. The storage format is unchanged.
+ *
  * Three modes exist per key position: normal, symbol and cursor.
  * The active keymap is kept in RAM and can be updated over the serial
  * protocol (see protocol.h). On AVR boards it is persisted to EEPROM.
@@ -99,6 +103,17 @@
 #define KV_F23 0xFA
 #define KV_F24 0xFB
 
+// Consumer page keys have no Keyboard.h constant and their usage is 16 bit, so
+// they use the value block Keyboard.h leaves undefined (136..175). Android maps
+// these usages to the home screen, back and the volume controls.
+#define KV_CONSUMER_BASE 136
+#define KV_CONSUMER_COUNT 40
+#define KV_ANDROID_HOME 136
+#define KV_ANDROID_BACK 137
+#define KV_VOLUME_MUTE 138
+#define KV_VOLUME_UP 139
+#define KV_VOLUME_DOWN 140
+
 struct KeyEntry {
   uint8_t value; // ASCII code for text, otherwise a Keyboard.h constant; 0 == none
   uint8_t mods;  // modifier bitmask (MOD_* values)
@@ -126,10 +141,33 @@ static const uint8_t asciiUsageMap[128] PROGMEM = {
   0x2f | 0x80, 0x31 | 0x80, 0x30 | 0x80, 0x35 | 0x80, 0x00
 };
 
+// Value - KV_CONSUMER_BASE -> consumer page usage, 0 for the unassigned slots.
+static const uint16_t consumerUsageMap[KV_CONSUMER_COUNT] PROGMEM = {
+  0x0223, 0x0224, 0x00E2, 0x00E9, 0x00EA,
+  0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+  0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+  0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+  0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+  0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+  0x0000, 0x0000, 0x0000, 0x0000, 0x0000,
+  0x0000, 0x0000, 0x0000, 0x0000
+};
+
+inline bool isConsumerValue(uint8_t value) {
+  return value >= KV_CONSUMER_BASE && value < KV_CONSUMER_BASE + KV_CONSUMER_COUNT;
+}
+
+inline uint16_t consumerUsage(uint8_t value) {
+  return pgm_read_word(&consumerUsageMap[value - KV_CONSUMER_BASE]);
+}
+
 // HID usage to send for an entry; *needsShift reports the shift modifier the
 // character itself requires, on top of entry.mods.
 inline uint8_t keyEntryUsage(const KeyEntry& entry, bool& needsShift) {
   needsShift = false;
+  if (isConsumerValue(entry.value)) {
+    return 0; // consumer keys are sent on the consumer report, see consumerUsage
+  }
   if (entry.value < 128) {
     uint8_t mapped = pgm_read_byte(&asciiUsageMap[entry.value]);
     if (mapped & 0x80) {
